@@ -1,0 +1,73 @@
+# Obelisk: HBM3E-only baseline (no HBF).
+# Used to validate the HBM mock model against DRAMsim3 / published HBM3E numbers.
+
+[simulation]
+max_cycles              = 100_000_000
+warmup_cycles           = 0
+freq_mhz                = 1000
+output_csv_path         = "output/hbm3e.csv"
+output_stats_json_path  = "output/hbm3e_stats.json"
+log_level               = 1
+
+[requester]
+trace_file              = "traces/samples/synthetic_seq_hbm.trace"
+max_in_flight           = 128
+issue_rate_per_cyc      = 4
+
+[host_bus]
+bandwidth_gbps          = 128.0
+base_latency_cycles     = 50
+queue_depth             = 64
+cpu_compute_cycles      = 100
+
+[address_mapping]
+policy                  = "channel_interleave_first"
+num_channels            = 16       # HBM3E pseudo-channels
+num_dies_hbf            = 16
+num_subarrays_hbf       = 32
+num_hbm_banks           = 128
+page_size_bytes         = 16384
+hbm_base_addr           = "0x0"
+hbm_size_bytes          = "96 GB"  # 12-Hi HBM3E
+hbf_base_addr           = "0x1800000000"
+hbf_size_bytes          = "1 GB"   # sink; HBM-only run
+
+[hbf_controller]
+read_queue_depth              = 128
+write_queue_depth             = 64
+scheduler_type                = "fcfs"
+controller_latency_cycles     = 10
+enable_read_priority          = true
+max_outstanding_per_subarray  = 4
+
+[logic_die]
+num_channels                  = 8
+num_dies_per_stack            = 16
+num_subarrays_per_die         = 32
+tsv_bandwidth_gbps            = 200
+logic_die_freq_mhz            = 1000
+command_translation_cycles    = 2
+max_concurrent_subarray_cmds  = 64
+
+[nand_media]
+page_size_bytes           = 16384
+pages_per_block           = 512
+blocks_per_subarray       = 1024
+tR_cycles                 = 50_000
+tPROG_cycles              = 500_000
+tBERS_cycles              = 3_000_000
+cache_buffer_pages        = 4
+cache_hit_read_cycles     = 500
+capacity_per_die_bytes    = "32 GB"
+num_dies_per_stack        = 16
+num_subarrays_per_die     = 32
+
+[hbm_media]
+# HBM3E parameters; will be replaced by DRAMsim3 once integrated.
+num_banks                 = 128
+bandwidth_gbps            = 1024.0  # ~1 TB/s per stack, CONFIRMED: vendor specs
+tCL_cycles                = 14
+tRCD_cycles               = 14
+tRP_cycles                = 14
+access_granularity        = 64
+capacity_bytes            = "96 GB"

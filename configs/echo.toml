@@ -1,0 +1,72 @@
+# Minimal smoke test config.
+# Exercises the host-bus + HBF pipeline with a tiny trace and loose sizes.
+
+[simulation]
+max_cycles              = 10_000_000
+warmup_cycles           = 0
+freq_mhz                = 1000
+output_csv_path         = "output/echo.csv"
+output_stats_json_path  = "output/echo_stats.json"
+log_level               = 1
+
+[requester]
+trace_file              = "traces/samples/synthetic_seq.trace"
+max_in_flight           = 32
+issue_rate_per_cyc      = 1
+
+[host_bus]
+bandwidth_gbps          = 128.0
+base_latency_cycles     = 20
+queue_depth             = 32
+cpu_compute_cycles      = 20
+
+[address_mapping]
+policy                  = "channel_interleave_first"
+num_channels            = 4
+num_dies_hbf            = 4
+num_subarrays_hbf       = 8
+num_hbm_banks           = 16
+page_size_bytes         = 16384
+hbm_base_addr           = "0x0"
+hbm_size_bytes          = "1 GB"
+hbf_base_addr           = "0x1800000000"
+hbf_size_bytes          = "1 GB"
+
+[hbf_controller]
+read_queue_depth              = 64
+write_queue_depth             = 32
+scheduler_type                = "fcfs"
+controller_latency_cycles     = 10
+enable_read_priority          = true
+max_outstanding_per_subarray  = 4
+
+[logic_die]
+num_channels                  = 4
+num_dies_per_stack            = 4
+num_subarrays_per_die         = 8
+tsv_bandwidth_gbps            = 200
+logic_die_freq_mhz            = 1000
+command_translation_cycles    = 2
+max_concurrent_subarray_cmds  = 32
+
+[nand_media]
+page_size_bytes           = 16384
+pages_per_block           = 512
+blocks_per_subarray       = 128
+tR_cycles                 = 50_000
+tPROG_cycles              = 500_000
+tBERS_cycles              = 3_000_000
+cache_buffer_pages        = 4
+cache_hit_read_cycles     = 500
+num_dies_per_stack        = 4
+num_subarrays_per_die     = 8
+capacity_per_die_bytes    = "256 MB"
+
+[hbm_media]
+num_banks                 = 16
+bandwidth_gbps            = 1024.0
+tCL_cycles                = 14
+tRCD_cycles               = 14
+tRP_cycles                = 14
+access_granularity        = 64
+capacity_bytes            = "1 GB"
