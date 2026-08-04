@@ -1,0 +1,99 @@
+{
+  "schema": {
+    "name": "hbfsim.kimi_k3_tp8_capacity",
+    "version": 1
+  },
+  "intended_use": {
+    "role": "single_node_tp8_capacity_preflight",
+    "paper_claim_eligible_by_itself": false,
+    "allowed_claim": "vendor_accounting_reproduced_and_capacity_feasibility_sensitivity",
+    "forbidden_claims": [
+      "memory_system_service_feasible",
+      "single_node_deployable",
+      "ttft",
+      "tpot",
+      "slo",
+      "token_throughput"
+    ]
+  },
+  "model": {
+    "name": "kimi_k3",
+    "repository": "https://huggingface.co/moonshotai/Kimi-K3",
+    "revision": "9f62e4e9fffbd0a83ddd60e1c209d828994b3569",
+    "config_path": "config.json",
+    "config_sha256": "9710e121a58d03ac92c8d6da287a19541994319afbbe6d6202af001ffd379213",
+    "official_report": "https://arxiv.org/abs/2607.24653",
+    "architecture": {
+      "total_parameters_reported": 2780000000000,
+      "active_parameters_per_token_reported": 104200000000,
+      "decoder_layers": 93,
+      "dense_layers": 1,
+      "moe_layers": 92,
+      "kda_layers": 69,
+      "mla_layers": 24,
+      "hidden_size": 7168,
+      "latent_moe_hidden_size": 3584,
+      "moe_intermediate_size": 3072,
+      "routed_experts": 896,
+      "selected_experts_per_token": 16,
+      "shared_experts": 2,
+      "max_context_tokens": 1048576
+    }
+  },
+  "vendor_loader_accounting": {
+    "source": "https://www.amd.com/en/developer/resources/technical-articles/2026/kimi-k3-on-amd-instinct-gpus.html",
+    "source_kind": "safetensors_header_census_plus_atom_tp8_placement_rules",
+    "source_values_are_rounded_to_decimal_gb": true,
+    "decimal_gb_bytes": 1000000000,
+    "full_checkpoint_physical_storage_bytes": 1560860000000,
+    "tp8_per_rank_weight_categories_bytes": {
+      "dense_mlp": 182000000,
+      "routed_expert_packed_values_and_scales": 180807000000,
+      "shared_expert": 3039000000,
+      "kda_attention_gemm": 7763000000,
+      "mla_attention_gemm": 2029000000,
+      "norm": 6000000,
+      "other_weights": 11231000000
+    },
+    "tp8_per_rank_weight_total_bytes": 205057000000,
+    "full_checkpoint_routed_expert_bytes": 1446456000000,
+    "tp8_per_rank_known_1m_runtime_state_bytes": 15491000000,
+    "reported_tp8_gib": {
+      "weights": "190.974",
+      "known_1m_runtime_state": "14.427",
+      "known_total": "205.401"
+    },
+    "runtime_state_note": "The vendor table reports 15.491 decimal GB from rounded MLA/KDA/AttnRes components; it excludes kernel workspaces, communication buffers, allocator fragmentation, graph capture, reordered copies, and framework runtime.",
+    "precision_note": "Routed experts use packed MXFP4 values and scales; attention, shared experts, LM head, and other ignored modules remain BF16 under the published loader. The vendor runtime-state prose and per-component dtype labels are retained as source assumptions rather than reinterpreted here.",
+    "tp8_placement_note": "Every rank retains all 896 expert IDs and tensor-shards each expert matrix; this is not expert parallel partitioning."
+  },
+  "capacity_sensitivity": {
+    "tensor_parallel_degree": 8,
+    "accelerators_per_single_node_domain": 8,
+    "hbm_capacities_gib_per_rank": [
+      96,
+      192,
+      288
+    ],
+    "runtime_overhead_gib_per_rank": [
+      8,
+      16,
+      32
+    ],
+    "hybrid_capacity_policy": {
+      "resident_hbm": [
+        "all_non_routed_weights",
+        "vendor_known_1m_runtime_state",
+        "runtime_overhead_sensitivity",
+        "two_full_routed_layer_tp8_shard_buffers"
+      ],
+      "backing_tier": [
+        "all_routed_expert_packed_values_and_scales"
+      ],
+      "routed_layer_bytes_derivation": "tp8_routed_expert_bytes/92",
+      "active_layer_buffer_count": 2,
+      "capacity_interpretation": "conservative_route_independent_fit_test",
+      "service_interpretation": "undetermined_without_router_trace_and_memory_replay"
+    }
+  }
+}

@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HBFSim Architecture Editor</title>
+    <link rel="stylesheet" href="./styles.css?v=8" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark">H</div>
+          <div>
+            <h1>HBFSim Architecture Editor</h1>
+            <p>Current implementation map · L0–L6 abstraction · summary schema v10</p>
+          </div>
+        </div>
+        <div class="toolbar" aria-label="Canvas tools">
+          <button id="selectModeBtn" class="tool active" type="button">Select</button>
+          <button id="connectModeBtn" class="tool" type="button">Connect</button>
+          <button id="addNodeBtn" class="tool" type="button">Add node</button>
+          <button id="deleteBtn" class="tool danger" type="button">Delete</button>
+          <span class="separator"></span>
+          <button id="zoomOutBtn" class="icon-tool" type="button" aria-label="Zoom out">-</button>
+          <output id="zoomLabel" class="zoom-label">100%</output>
+          <button id="zoomInBtn" class="icon-tool" type="button" aria-label="Zoom in">+</button>
+          <button id="fitBtn" class="tool" type="button">Fit</button>
+          <button id="routeBtn" class="tool" type="button">Orthogonal</button>
+          <button id="snapBtn" class="tool active" type="button">Snap</button>
+          <span class="separator"></span>
+          <button id="undoBtn" class="tool" type="button" disabled>Undo</button>
+          <button id="redoBtn" class="tool" type="button" disabled>Redo</button>
+          <span class="separator"></span>
+          <button id="saveBtn" class="tool" type="button">Save local</button>
+          <button id="exportBtn" class="tool" type="button">Export JSON</button>
+          <button id="importBtn" class="tool" type="button">Import JSON</button>
+          <input id="importFile" type="file" accept="application/json" hidden />
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="left-panel" id="leftPanel">
+          <section class="panel-section">
+            <h2>Diagrams</h2>
+            <div id="diagramList" class="diagram-list"></div>
+          </section>
+          <section class="panel-section">
+            <h2>Mode</h2>
+            <p id="modeHint" class="hint">
+              Select and drag nodes. Drag blank canvas to pan. Use mouse wheel to zoom.
+            </p>
+            <p class="hint shortcuts">
+              <strong>V</strong> select · <strong>C</strong> connect · <strong>F</strong> fit ·
+              <strong>R</strong> route · <strong>⌘/Ctrl+Z</strong> undo ·
+              <strong>⌘/Ctrl+⇧Z</strong> redo · <strong>Del</strong> delete ·
+              <strong>Alt-drag</strong> ignores snap
+            </p>
+          </section>
+          <section class="panel-section">
+            <h2>Canvas</h2>
+            <label class="range-field">
+              <span class="range-label">Wheel zoom speed <output id="wheelSensVal">0.5×</output></span>
+              <input id="wheelSens" type="range" min="0.1" max="1.5" step="0.05" value="0.5" />
+            </label>
+          </section>
+
+          <section class="panel-section">
+            <h2>Entity type</h2>
+            <div id="legend" class="legend"></div>
+          </section>
+          <section class="panel-section">
+            <h2>Abstraction level</h2>
+            <div id="levelLegend" class="level-legend"></div>
+          </section>
+        </aside>
+
+        <section class="canvas-wrap" aria-label="Editable architecture canvas">
+          <svg id="canvas" class="canvas" role="img" aria-label="HBFSim architecture diagram">
+            <defs>
+              <marker
+                id="arrow"
+                viewBox="0 0 12 10"
+                refX="11"
+                refY="5"
+                markerWidth="12"
+                markerHeight="10"
+                markerUnits="userSpaceOnUse"
+                orient="auto-start-reverse"
+              >
+                <path d="M 0 0 L 12 5 L 0 10 z" fill="#52606D"></path>
+              </marker>
+              <marker
+                id="arrowSelected"
+                viewBox="0 0 12 10"
+                refX="11"
+                refY="5"
+                markerWidth="12"
+                markerHeight="10"
+                markerUnits="userSpaceOnUse"
+                orient="auto-start-reverse"
+              >
+                <path d="M 0 0 L 12 5 L 0 10 z" fill="#C65D21"></path>
+              </marker>
+            </defs>
+            <rect id="canvasBg" class="canvas-bg" x="-50000" y="-50000" width="100000" height="100000"></rect>
+            <g id="viewport">
+              <g id="edgesLayer"></g>
+              <g id="nodesLayer"></g>
+              <g id="edgeLabelsLayer"></g>
+            </g>
+          </svg>
+          <div id="nodeTooltip" class="node-tooltip hidden"></div>
+          <div class="resizer resizer-left" id="resizerLeft" title="Drag to resize · click the tab to hide"></div>
+          <div class="resizer resizer-right" id="resizerRight" title="Drag to resize · click the tab to hide"></div>
+          <button class="panel-toggle toggle-left" id="toggleLeft" type="button" aria-label="Hide or show left panel">⟨</button>
+          <button class="panel-toggle toggle-right" id="toggleRight" type="button" aria-label="Hide or show right panel">⟩</button>
+          <div class="statusbar">
+            <span id="statusText">Ready</span>
+            <span id="positionText">x 0, y 0</span>
+          </div>
+        </section>
+
+        <aside class="right-panel" id="rightPanel">
+          <section class="panel-section">
+            <h2>Inspector</h2>
+            <div id="emptyInspector" class="empty-state">
+              Select a node or edge to edit its content and topology.
+            </div>
+
+            <form id="nodeInspector" class="inspector hidden">
+              <label>
+                Node label
+                <input id="nodeLabel" type="text" autocomplete="off" />
+              </label>
+              <label>
+                Subtitle
+                <textarea id="nodeSubtitle" rows="4"></textarea>
+              </label>
+              <label>
+                Code definition
+                <span class="code-ref-row">
+                  <input id="nodeCodeRef" type="text" autocomplete="off" />
+                  <button id="nodeOpenCodeBtn" class="compact-button" type="button">Open</button>
+                </span>
+              </label>
+              <label>
+                Type
+                <select id="nodeType"></select>
+              </label>
+              <label>
+                Abstraction level
+                <select id="nodeLevel"></select>
+              </label>
+              <div class="grid-two">
+                <label>
+                  X
+                  <input id="nodeX" type="number" step="10" />
+                </label>
+                <label>
+                  Y
+                  <input id="nodeY" type="number" step="10" />
+                </label>
+              </div>
+              <div class="grid-two">
+                <label>
+                  Width
+                  <input id="nodeW" type="number" step="10" min="90" />
+                </label>
+                <label>
+                  Height
+                  <input id="nodeH" type="number" step="10" min="70" />
+                </label>
+              </div>
+            </form>
+
+            <form id="edgeInspector" class="inspector hidden">
+              <label>
+                Edge label
+                <input id="edgeLabel" type="text" autocomplete="off" />
+              </label>
+              <label>
+                Source
+                <select id="edgeSource"></select>
+              </label>
+              <label>
+                Target
+                <select id="edgeTarget"></select>
+              </label>
+            </form>
+          </section>
+
+          <section class="panel-section">
+            <h2>Create edge</h2>
+            <div class="edge-maker">
+              <label>
+                Source
+                <select id="newEdgeSource"></select>
+              </label>
+              <label>
+                Target
+                <select id="newEdgeTarget"></select>
+              </label>
+              <label>
+                Label
+                <input id="newEdgeLabel" type="text" placeholder="optional" />
+              </label>
+              <button id="createEdgeBtn" class="wide-button" type="button">Create edge</button>
+            </div>
+          </section>
+
+          <section class="panel-section json-section">
+            <h2>JSON</h2>
+            <textarea id="jsonBox" spellcheck="false"></textarea>
+            <div class="json-actions">
+              <button id="applyJsonBtn" type="button">Apply JSON</button>
+              <button id="resetBtn" type="button">Reset template</button>
+            </div>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <script src="./app.js?v=13"></script>
+  </body>
+</html>

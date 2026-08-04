@@ -1,0 +1,64 @@
+{
+  "schema": {
+    "name": "hbfsim.validation.case",
+    "version": 1
+  },
+  "case_id": "hbf.write-buffer-overlap",
+  "model": "hbf",
+  "comparison": {
+    "time_abs_tolerance_ns": 1e-09,
+    "time_rel_tolerance": 1e-12
+  },
+  "config": {
+    "stacks": 1,
+    "channels_per_stack": 1,
+    "dies_per_channel": 1,
+    "planes_per_die": 1,
+    "blocks_per_plane": 4,
+    "pages_per_block": 4,
+    "page_size_bytes": 512,
+    "oob_bytes_per_page": 128,
+    "media_lanes_per_plane": 1,
+    "subarrays_per_plane": 1,
+    "page_buffer_banks_per_plane": 1,
+    "mapping_entries_per_page": 1,
+    "batch_activation": false,
+    "read_buffer_pages": 0,
+    "write_coalescing_enabled": true,
+    "write_buffer_completion_requires_flush": false,
+    "write_buffer_pages": 2,
+    "write_buffer_flush_threshold_pages": 0,
+    "auto_gc_enabled": false
+  },
+  "initial_state": {},
+  "inspect_addresses": [
+    0,
+    2048
+  ],
+  "requests": [
+    {
+      "id": "range-a",
+      "arrival_ns": 0.0,
+      "op": "write",
+      "address_space": "logical",
+      "addr": 0,
+      "bytes": 256
+    },
+    {
+      "id": "range-b-overlap",
+      "arrival_ns": 0.0,
+      "op": "write",
+      "address_space": "logical",
+      "addr": 128,
+      "bytes": 256
+    },
+    {
+      "id": "drain",
+      "arrival_ns": 0.0,
+      "op": "drain",
+      "address_space": "internal",
+      "addr": 0,
+      "bytes": 0
+    }
+  ]
+}

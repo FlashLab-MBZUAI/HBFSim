@@ -1,0 +1,52 @@
+{
+  "schema": {
+    "name": "hbfsim.validation.case",
+    "version": 1
+  },
+  "case_id": "hbm.rw-turnaround",
+  "model": "hbm",
+  "comparison": {
+    "time_abs_tolerance_ns": 1e-09,
+    "time_rel_tolerance": 1e-12
+  },
+  "config": {
+    "capacity_bytes": 4096,
+    "stacks": 1,
+    "channels_per_stack": 1,
+    "pseudo_channels_per_channel": 1,
+    "bank_groups_per_pseudo_channel": 1,
+    "banks_per_group": 1,
+    "address_mapping_ns": 0.25
+  },
+  "inspect_addresses": [
+    0,
+    64,
+    128
+  ],
+  "requests": [
+    {
+      "id": "read-a",
+      "arrival_ns": 0.0,
+      "op": "read",
+      "address_space": "logical",
+      "addr": 0,
+      "bytes": 64
+    },
+    {
+      "id": "write-b",
+      "arrival_ns": 0.0,
+      "op": "write",
+      "address_space": "logical",
+      "addr": 64,
+      "bytes": 64
+    },
+    {
+      "id": "read-c",
+      "arrival_ns": 0.0,
+      "op": "read",
+      "address_space": "logical",
+      "addr": 128,
+      "bytes": 64
+    }
+  ]
+}

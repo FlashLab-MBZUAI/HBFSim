@@ -1,0 +1,65 @@
+{
+  "schema": {
+    "name": "hbfsim.validation.case",
+    "version": 1
+  },
+  "case_id": "l3.ramulator2.read-hit",
+  "model": "hbm",
+  "comparison": {
+    "time_abs_tolerance_ns": 1e-09,
+    "time_rel_tolerance": 1e-12
+  },
+  "config": {
+    "capacity_bytes": 1048576,
+    "stacks": 1,
+    "channels_per_stack": 1,
+    "pseudo_channels_per_channel": 1,
+    "bank_groups_per_pseudo_channel": 1,
+    "banks_per_group": 1,
+    "channel_row_size_bytes": 8192,
+    "channel_width_bits": 64,
+    "burst_length": 8,
+    "pin_rate_Gbps": 3.2,
+    "data_rate_per_command_clock": 2,
+    "tRCDRD_ns": 12.5,
+    "tRCDWR_ns": 12.5,
+    "tCL_ns": 12.5,
+    "tCWL_ns": 10.0,
+    "tRP_ns": 12.5,
+    "tRAS_ns": 32.5,
+    "tRC_ns": 45.0,
+    "tWR_ns": 15.0,
+    "tRTP_ns": 7.5,
+    "tCCD_S_cycles": 4,
+    "tCCD_L_cycles": 8,
+    "tRRD_S_ns": 2.5,
+    "tRRD_L_ns": 5.0,
+    "tFAW_ns": 21.25,
+    "tWTR_S_ns": 2.5,
+    "tWTR_L_ns": 7.5,
+    "tRTW_ns": 7.5,
+    "refresh_enabled": false
+  },
+  "inspect_addresses": [
+    0,
+    64
+  ],
+  "requests": [
+    {
+      "id": "read-miss",
+      "arrival_ns": 0.0,
+      "op": "read",
+      "address_space": "logical",
+      "addr": 0,
+      "bytes": 64
+    },
+    {
+      "id": "read-hit",
+      "arrival_ns": 0.0,
+      "op": "read",
+      "address_space": "logical",
+      "addr": 64,
+      "bytes": 64
+    }
+  ]
+}

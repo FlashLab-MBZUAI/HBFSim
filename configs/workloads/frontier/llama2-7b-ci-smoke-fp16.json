@@ -1,0 +1,69 @@
+{
+  "schema": {
+    "name": "hbfsim.frontier_dense_model_memory",
+    "version": 2
+  },
+  "intended_use": {
+    "role": "ci_smoke_only",
+    "paper_claim_eligible": false,
+    "reason": "Small legacy model retained only for fast structural regression coverage"
+  },
+  "model": {
+    "name": "llama2_7b_dense_example",
+    "architecture": "dense_decoder_transformer",
+    "source": {
+      "frontier_repository": "https://github.com/NetX-lab/Frontier",
+      "frontier_revision": "a4b22df8211864bf229258ecdfbe680f048f2d77",
+      "frontier_config_path": "data/config/models/llama2_7b_dense_example.json",
+      "frontier_config_sha256": "7960310d729126433950384c5d7d4c3465b4161c9db9ca5c0053c46b0db8891d",
+      "model_repository": "https://github.com/NetX-lab/Frontier",
+      "model_revision": "a4b22df8211864bf229258ecdfbe680f048f2d77",
+      "config_access": "bundled"
+    }
+  },
+  "architecture": {
+    "num_layers": 32,
+    "hidden_size": 4096,
+    "intermediate_size": 11008,
+    "num_attention_heads": 32,
+    "num_key_value_heads": 32,
+    "vocab_size": 32000,
+    "gated_mlp": true,
+    "attention_bias": false,
+    "mlp_bias": false,
+    "tie_word_embeddings": false
+  },
+  "precision": {
+    "profile_id": "native-fp16-kv-fp16",
+    "matrix_weight_dtype": "float16",
+    "matrix_weight_bytes": 2,
+    "non_matrix_weight_dtype": "float16",
+    "non_matrix_weight_bytes": 2,
+    "kv_dtype": "float16",
+    "kv_bytes": 2,
+    "activation_dtype": "float16",
+    "activation_bytes": 2,
+    "quantization_scheme": "none",
+    "scale_dtype": null,
+    "scale_bytes": 0,
+    "zero_point_bytes": 0,
+    "claim_scope": "memory_storage_and_traffic_only"
+  },
+  "traffic_model": {
+    "weight_reads": "once_per_batch_per_layer",
+    "attention_kv_reads": "context_once_per_request_per_layer",
+    "kv_writes": "scheduled_input_tokens_once_per_layer",
+    "output_head_reads": "once_per_batch_with_output_token",
+    "embedding_address_policy": "sha256_per_scheduled_token_surrogate_rows",
+    "block_table_entry_bytes": 4,
+    "scratch_read_bytes_per_token_per_layer": 0,
+    "scratch_write_bytes_per_token_per_layer": 0,
+    "scratch_status": "not_modeled_without_calibrated_kernel_offchip_trace"
+  },
+  "addressing": {
+    "object_alignment_bytes": 4096,
+    "kv_slot_identity": "frontier_physical_block_id",
+    "kv_slot_layout": "block_major_layer_major_token_major",
+    "kv_slot_layout_status": "canonical_object_mapping_not_backend_measured"
+  }
+}

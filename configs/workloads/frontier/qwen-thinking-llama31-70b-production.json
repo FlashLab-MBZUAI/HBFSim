@@ -1,0 +1,102 @@
+{
+  "schema": {
+    "name": "hbfsim.qwen_bailian_frontier_suite_config",
+    "version": 1
+  },
+  "suite_id": "qwen-thinking-llama31-70b-production-v1",
+  "intended_use": {
+    "role": "paper_primary_workload_input",
+    "paper_result_eligible_by_itself": false,
+    "claims_boundary": "Production request shapes only; Frontier execution, derived memory traffic, HBFSim timing, and paper claims require separate audited artifacts"
+  },
+  "source": {
+    "repository": "https://github.com/alibaba-edu/qwen-bailian-usagetraces-anon",
+    "revision": "5f7439c51ec248a0c585f7d90a41a6f57773b912",
+    "license": "Apache-2.0",
+    "artifact": "qwen_thinking_blksz_16.jsonl",
+    "sha256": "41ac36d9d1b54d084eeb6b05e9d142ba9d02f8bf79cfc9fff418d8ab7cdee906",
+    "bytes": 27901454,
+    "records": 10812,
+    "hash_block_tokens": 16,
+    "statistics": {
+      "duration_s": "7191.734",
+      "prefill_tokens": 51496311,
+      "decode_tokens": 39472157,
+      "max_prefill_tokens": 51622,
+      "max_decode_tokens": 75990
+    }
+  },
+  "frontier_workload": {
+    "model": {
+      "identity": "meta-llama/Llama-3.1-70B",
+      "frontier_name": "llama31_70b"
+    },
+    "primary_precision_profile": "w8a16-kv-bf16",
+    "sensitivity_precision_profiles": [
+      "bf16-kv-bf16"
+    ],
+    "required_runtime_behaviors": [
+      "multi_request_batching",
+      "prefix_kv_lifecycle",
+      "steady_burst_long_context_decode_tail"
+    ]
+  },
+  "window_policy": {
+    "request_count": 256,
+    "required_windows": [
+      "steady",
+      "burst",
+      "long_context_decode_tail"
+    ],
+    "selectors": {
+      "steady": {
+        "algorithm": "robust_center_mad_v1",
+        "expected": {
+          "start_index": 3074,
+          "end_index_exclusive": 3330,
+          "source_start_timestamp_s": "2041.676",
+          "source_end_timestamp_s": "2201.687",
+          "duration_s": "160.011",
+          "prefill_tokens": 1185372,
+          "decode_tokens": 885429,
+          "total_tokens": 2070801,
+          "max_prefill_tokens": 39341,
+          "max_decode_tokens": 56742,
+          "max_total_tokens": 56827
+        }
+      },
+      "burst": {
+        "algorithm": "minimum_arrival_span_v1",
+        "expected": {
+          "start_index": 810,
+          "end_index_exclusive": 1066,
+          "source_start_timestamp_s": "229.753",
+          "source_end_timestamp_s": "273.622",
+          "duration_s": "43.869",
+          "prefill_tokens": 707190,
+          "decode_tokens": 1244249,
+          "total_tokens": 1951439,
+          "max_prefill_tokens": 21201,
+          "max_decode_tokens": 18154,
+          "max_total_tokens": 21838
+        }
+      },
+      "long_context_decode_tail": {
+        "algorithm": "balanced_input_output_tail_v1",
+        "expected": {
+          "start_index": 4332,
+          "end_index_exclusive": 4588,
+          "source_start_timestamp_s": "2889.401",
+          "source_end_timestamp_s": "3056.537",
+          "duration_s": "167.136",
+          "prefill_tokens": 1099024,
+          "decode_tokens": 914852,
+          "total_tokens": 2013876,
+          "max_prefill_tokens": 51622,
+          "max_decode_tokens": 68858,
+          "max_total_tokens": 68980
+        }
+      }
+    }
+  }
+}

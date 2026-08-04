@@ -1,0 +1,123 @@
+{
+  "schema": {
+    "name": "hbfsim.frontier_70b_two_axis_study",
+    "version": 1
+  },
+  "study_id": "llama31-70b-w8a16-kv-bf16.qwen-burst.two-axis-v1",
+  "workload": {
+    "model": "meta-llama/Llama-3.1-70B",
+    "precision_profile": "w8a16-kv-bf16",
+    "request_suite": "qwen-bailian",
+    "window": "burst",
+    "requests": 256,
+    "frontier_full_replay_required": true
+  },
+  "population_sources": {
+    "p0_75": {
+      "planner_topology": "4h4f",
+      "target_pressure": "0.75"
+    },
+    "p1_0": {
+      "planner_topology": "4h4f",
+      "target_pressure": "1.0"
+    },
+    "p1_25": {
+      "planner_topology": "4h4f",
+      "target_pressure": "1.25"
+    }
+  },
+  "cells": [
+    {
+      "cell_id": "mix_ratio.6h2f.common_p1_0",
+      "axis": "mix_ratio",
+      "topology": "6h2f",
+      "population_source": "p1_0"
+    },
+    {
+      "cell_id": "mix_ratio.4h4f.common_p1_0",
+      "axis": "mix_ratio_and_pressure",
+      "topology": "4h4f",
+      "population_source": "p1_0"
+    },
+    {
+      "cell_id": "mix_ratio.2h6f.common_p1_0",
+      "axis": "mix_ratio",
+      "topology": "2h6f",
+      "population_source": "p1_0"
+    },
+    {
+      "cell_id": "pressure.4h4f.p0_75",
+      "axis": "pressure",
+      "topology": "4h4f",
+      "population_source": "p0_75"
+    },
+    {
+      "cell_id": "pressure.4h4f.p1_25",
+      "axis": "pressure",
+      "topology": "4h4f",
+      "population_source": "p1_25"
+    }
+  ],
+  "mix_ratio_contract": {
+    "anchor": "p1_0",
+    "same_manifest": true,
+    "same_object_map": true,
+    "same_logical_trace_sha256": true,
+    "same_request_stream": true,
+    "same_address_population": true,
+    "capacity_pressure_is_observed": true,
+    "logical_population_must_not_be_resized": true
+  },
+  "pressure_contract": {
+    "fixed_topology": "4h4f",
+    "target_pressures": [
+      "0.75",
+      "1.0",
+      "1.25"
+    ]
+  },
+  "memory_sampling": {
+    "scheme": "frontier_batch_temporal_quantiles_v1",
+    "quantiles": [
+      "0",
+      "0.5",
+      "1"
+    ],
+    "batch_row_formula": "floor(quantile * (total_frontier_batches - 1))",
+    "execution_priority": [
+      "0.5",
+      "0",
+      "1"
+    ],
+    "batches_per_quantile": 1,
+    "scaling_applied": false,
+    "byte_sampling_applied": false,
+    "aggregate_across_quantiles": false,
+    "partial_trace_must_be_reported": true
+  },
+  "baselines": [
+    "all_hbm_upper_bound",
+    "hbm_hbf",
+    "hbm_cxl_memory",
+    "hbm_nvme_ssd"
+  ],
+  "baseline_semantics": {
+    "all_hbm_upper_bound": "fully_resident_upper_bound",
+    "hbm_hbf": "HBM+HBF_hybrid_layer_streaming",
+    "hbm_cxl_memory": "HBM+CXL_memory_hybrid_layer_streaming",
+    "hbm_nvme_ssd": "HBM+NVMe_SSD_hybrid_layer_streaming",
+    "pure_all_hbf_included": false
+  },
+  "execution": {
+    "default_cell_parallelism": 1,
+    "maximum_cell_parallelism": 5,
+    "within_cell": "two_cases_concurrent_four_baselines_atomic"
+  },
+  "claim_scope": {
+    "eligible": "memory_system_service_only",
+    "ttft_tpot_slo": false,
+    "time_based_throughput": false,
+    "external_absolute_performance": false,
+    "partial_slice_is_full_matrix": false
+  }
+}

@@ -1,0 +1,317 @@
+{
+  "schema": {
+    "name": "hbfsim.validation.timing-calibration-protocol",
+    "version": 1
+  },
+  "calibration_id": "h100-llama2-70b-vidur-interpolation-v1",
+  "anchor": {
+    "anchor_id": "h100-llama2-70b-vidur-mlperf-v1",
+    "manifest_sha256": "e56072fd41679eb04dbf1ca533df88d2db06f29ec653d4ef8001fba57fef5ec6",
+    "bundle_schema": {
+      "name": "hbfsim.validation.public-timing-anchor-bundle",
+      "version": 1
+    },
+    "verification_schema": {
+      "name": "hbfsim.validation.public-timing-anchor-verification",
+      "version": 1
+    },
+    "required_timing_claim_state": "anchor_ready_not_calibrated"
+  },
+  "workload_evidence": {
+    "schema": {
+      "name": "hbfsim.validation.mlperf-openorca-length-evidence",
+      "version": 1
+    },
+    "dataset": {
+      "source_url": "https://inference.mlcommons-storage.org/open_orca/open_orca_gpt4_tokenized_llama.sampled_24576.pkl.gz",
+      "metadata_url": "https://inference.mlcommons-storage.org/metadata/llama-2-70b-open-orca-dataset.uri",
+      "bytes": 31693249,
+      "md5": "c247a315b9328365f66d2c2585b35cd4",
+      "sha256": "ec34d70fc4c15be3435a24f394bf27c8016b479ec68f3cf8e6bc9c99bf97754c",
+      "pickle_load_allowed_only_after_digest_match": true,
+      "required_columns": [
+        "id",
+        "system_prompt",
+        "question",
+        "output",
+        "input",
+        "tok_input",
+        "tok_output",
+        "origin",
+        "tok_input_length",
+        "tok_output_length"
+      ]
+    },
+    "lengths_csv": {
+      "filename": "lengths.csv",
+      "columns": [
+        "qsl_idx",
+        "input_tokens",
+        "reference_output_tokens"
+      ],
+      "rows": 24576,
+      "bytes": 320446,
+      "sha256": "49a3c1530acbe595339400ee44fd11e4e6ce3b3d715c407cc1543eb1618db85a",
+      "pairs_u32le_sha256": "113366f032bc8cb8efd15ad1fa7baf2b363a23f831222a53eecf879a93e8c644",
+      "input_tokens": {
+        "min": 48,
+        "max": 1021,
+        "sum": 5463976
+      },
+      "reference_output_tokens": {
+        "min": 3,
+        "max": 1016,
+        "sum": 5379553
+      }
+    }
+  },
+  "fit_protocol": {
+    "time_unit": "milliseconds",
+    "target_statistic": "published_median",
+    "duplicate_key_policy": "group_then_decimal_median",
+    "deployment_refit": "all_unique_profile_keys_after_evaluation",
+    "split": {
+      "algorithm": "coordinate_interleaved_v1",
+      "evaluation_coordinate_index_parity": 1,
+      "axis_boundaries_are_training": true,
+      "evaluation_requires_complete_adjacent_corner_set": true,
+      "all_rows_with_the_same_profile_key_share_one_partition": true
+    },
+    "interpolator": {
+      "algorithm": "multilinear_adjacent_corners_v1",
+      "coordinate_arithmetic": "decimal",
+      "extrapolation_allowed": false,
+      "negative_prediction_allowed": false
+    },
+    "acceptance": {
+      "maximum_wape_pct": "10",
+      "maximum_p90_ape_pct": "20",
+      "maximum_absolute_signed_bias_pct": "5"
+    },
+    "families": [
+      {
+        "id": "attention_decode",
+        "artifact_id": "vidur.attention",
+        "filters": {
+          "is_prefill": "False"
+        },
+        "group_values": [
+          {"num_tensor_parallel_workers": "1"},
+          {"num_tensor_parallel_workers": "2"},
+          {"num_tensor_parallel_workers": "4"},
+          {"num_tensor_parallel_workers": "8"}
+        ],
+        "coordinates": [
+          {"column": "batch_size", "transform": "identity"},
+          {"column": "kv_cache_size", "transform": "identity"}
+        ],
+        "targets": [
+          {"id": "attn_decode", "column": "time_stats.attn_decode.median"}
+        ],
+        "minimum_evaluation_fraction": "0.20"
+      },
+      {
+        "id": "attention_prefill",
+        "artifact_id": "vidur.attention",
+        "filters": {
+          "is_prefill": "True"
+        },
+        "group_values": [
+          {"num_tensor_parallel_workers": "1"},
+          {"num_tensor_parallel_workers": "2"},
+          {"num_tensor_parallel_workers": "4"},
+          {"num_tensor_parallel_workers": "8"}
+        ],
+        "coordinates": [
+          {"column": "kv_cache_size", "transform": "identity"},
+          {"column": "prefill_chunk_size", "transform": "square"}
+        ],
+        "targets": [
+          {"id": "attn_prefill", "column": "time_stats.attn_prefill.median"}
+        ],
+        "minimum_evaluation_fraction": "0.20"
+      },
+      {
+        "id": "mlp",
+        "artifact_id": "vidur.mlp",
+        "filters": {},
+        "group_values": [
+          {"num_tensor_parallel_workers": "1"},
+          {"num_tensor_parallel_workers": "2"},
+          {"num_tensor_parallel_workers": "4"},
+          {"num_tensor_parallel_workers": "8"}
+        ],
+        "coordinates": [
+          {"column": "num_tokens", "transform": "identity"}
+        ],
+        "targets": [
+          {"id": "attn_pre_proj", "column": "time_stats.attn_pre_proj.median"},
+          {"id": "attn_rope", "column": "time_stats.attn_rope.median"},
+          {"id": "attn_post_proj", "column": "time_stats.attn_post_proj.median"},
+          {"id": "input_layernorm", "column": "time_stats.input_layernorm.median"},
+          {"id": "post_attention_layernorm", "column": "time_stats.post_attention_layernorm.median"},
+          {"id": "mlp_up_proj", "column": "time_stats.mlp_up_proj.median"},
+          {"id": "mlp_act", "column": "time_stats.mlp_act.median"},
+          {"id": "mlp_down_proj", "column": "time_stats.mlp_down_proj.median"},
+          {"id": "add", "column": "time_stats.add.median"}
+        ],
+        "minimum_evaluation_fraction": "0.45"
+      },
+      {
+        "id": "all_reduce",
+        "artifact_id": "vidur.all_reduce",
+        "filters": {
+          "collective": "all_reduce"
+        },
+        "group_values": [
+          {"devices_per_node": "2", "num_workers": "2"},
+          {"devices_per_node": "4", "num_workers": "4"},
+          {"devices_per_node": "8", "num_workers": "8"}
+        ],
+        "coordinates": [
+          {"column": "size", "transform": "identity"}
+        ],
+        "targets": [
+          {"id": "all_reduce", "column": "time_stats.all_reduce.median"}
+        ],
+        "minimum_evaluation_fraction": "0.45"
+      },
+      {
+        "id": "send_recv",
+        "artifact_id": "vidur.send_recv",
+        "filters": {
+          "collective": "send_recv",
+          "num_workers": "2"
+        },
+        "group_values": [
+          {"devices_per_node": "1"},
+          {"devices_per_node": "2"}
+        ],
+        "coordinates": [
+          {"column": "size", "transform": "identity"}
+        ],
+        "targets": [
+          {"id": "send_recv", "column": "time_stats.send_recv.median"}
+        ],
+        "minimum_evaluation_fraction": "0.45"
+      }
+    ]
+  },
+  "end_to_end_gate": {
+    "artifact_roles": {
+      "base_config": "mlperf.nvidia_llama2_base_config",
+      "offline_config": "mlperf.nvidia_llama2_offline_config",
+      "server_config": "mlperf.nvidia_llama2_server_config",
+      "preprocessor": "mlperf.nvidia_llama2_preprocessor",
+      "generation_config": "mlperf.nvidia_llama2_generation_config",
+      "offline_detail": "mlperf.offline_performance_detail",
+      "server_detail": "mlperf.server_performance_detail"
+    },
+    "evidence_artifacts": [
+      "mlperf.nvidia_llama2_base_config",
+      "mlperf.nvidia_llama2_offline_config",
+      "mlperf.nvidia_llama2_server_config",
+      "mlperf.nvidia_llama2_preprocessor",
+      "mlperf.nvidia_llama2_generation_config",
+      "mlperf.offline_performance_detail",
+      "mlperf.server_performance_detail"
+    ],
+    "declared_mlperf_sut": {
+      "accelerators": 8,
+      "replicas": 4,
+      "gpus_per_replica": 2,
+      "tensor_parallelism": 1,
+      "pipeline_parallelism": 2,
+      "gpu_batch_size": 1024,
+      "max_num_tokens": 1024,
+      "max_input_len": 1024,
+      "max_output_len": 1024,
+      "weight_precision": "fp8",
+      "kv_cache_precision": "fp8",
+      "framework": "TensorRT 10.8, CUDA 12.8",
+      "batch_scheduler_policy": "max_util",
+      "context_chunking_policy": "first_come_first_served"
+    },
+    "vidur_fit_scope": {
+      "tensor_parallelism": 1,
+      "decode_batch_size_min": 1,
+      "decode_batch_size_max": 128,
+      "total_tokens_min": 1,
+      "total_tokens_max": 4096,
+      "max_model_len": 4096,
+      "precision": "fp16",
+      "cpu_runtime_overhead_profile_present": false,
+      "scheduler_trace_profile_present": false
+    },
+    "detail_log_expectations": {
+      "loaded_qsl_set_count": 24576,
+      "loaded_qsl_set_u32le_sha256": "065d3037f73e79b83d6ef063e0a1e82a6173d46e6cb26ea46202b446d49a6c49",
+      "offline": {
+        "generated_query_count": 1,
+        "generated_samples_per_query": 294912,
+        "effective_target_qps": "110",
+        "result_samples_per_second": "107.256",
+        "result_tokens_per_second": "31306.8"
+      },
+      "server": {
+        "generated_query_count": 393216,
+        "generated_samples_per_query": 1,
+        "effective_target_qps": "107",
+        "result_completed_samples_per_sec": "106.211",
+        "result_completed_tokens_per_second": "31106.3"
+      }
+    },
+    "held_out_targets": {
+      "offline": {
+        "samples_per_second": "107.256",
+        "tokens_per_second": "31306.8",
+        "generated_output_tokens": 7170079
+      },
+      "server": {
+        "samples_per_second": "106.21",
+        "tokens_per_second": "31106.28",
+        "generated_output_tokens": 7199327
+      }
+    },
+    "external_validation_requirements": {
+      "tensor_parallelism_match": true,
+      "total_token_budget_covered": true,
+      "maximum_sequence_length_covered": true,
+      "weight_precision_match": true,
+      "kv_cache_precision_match": true,
+      "runtime_kernel_match_or_validated_bridge": true,
+      "declared_batch_domain_covered": true,
+      "cpu_runtime_overhead_covered": true,
+      "scheduler_and_arrival_process_covered": true,
+      "per_request_generated_length_distribution_known": true,
+      "maximum_external_wape_pct": "15"
+    },
+    "out_of_domain_action": "do_not_emit_performance_prediction"
+  },
+  "claim_policy": {
+    "operator_calibration_pass_state": "operator_calibrated_external_validation_not_established",
+    "operator_calibration_fail_state": "candidate_calibration_failed",
+    "frontier_timing_usable_for_performance": false,
+    "paper_result_eligible": false,
+    "llama31_w8a16_inheritance_allowed": false
+  },
+  "verification": {
+    "schema": {
+      "name": "hbfsim.validation.timing-calibration-verification",
+      "version": 1
+    },
+    "required_checks": [
+      "protocol_integrity",
+      "anchor_chain_integrity",
+      "workload_evidence_integrity",
+      "artifact_census_integrity",
+      "source_role_separation",
+      "predictor_tables_reproduced",
+      "operator_holdout_reproduced",
+      "metric_thresholds_reproduced",
+      "mlperf_evidence_reproduced",
+      "out_of_domain_gate_reproduced",
+      "eligibility_reproduced"
+    ]
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "schema": {
+    "name": "hbfsim.validation.case",
+    "version": 1
+  },
+  "case_id": "hbm.frfcfs-ready-hit",
+  "model": "hbm",
+  "comparison": {
+    "time_abs_tolerance_ns": 1e-09,
+    "time_rel_tolerance": 1e-12
+  },
+  "config": {
+    "capacity_bytes": 65536,
+    "stacks": 1,
+    "channels_per_stack": 1,
+    "pseudo_channels_per_channel": 1,
+    "bank_groups_per_pseudo_channel": 1,
+    "banks_per_group": 2
+  },
+  "initial_state": {},
+  "inspect_addresses": [
+    22513,
+    6496,
+    22655
+  ],
+  "requests": [
+    {
+      "id": "prime-hit-bank-row5",
+      "arrival_ns": 0.0,
+      "op": "read",
+      "address_space": "logical",
+      "addr": 22513,
+      "bytes": 1
+    },
+    {
+      "id": "prime-conflict-bank-row1",
+      "arrival_ns": 0.0,
+      "op": "read",
+      "address_space": "logical",
+      "addr": 6496,
+      "bytes": 1
+    },
+    {
+      "id": "hit-before-conflict-split",
+      "arrival_ns": 0.0,
+      "op": "read",
+      "address_space": "logical",
+      "addr": 22655,
+      "bytes": 64
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+build/
+build-*/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.venv/
+.DS_Store
+out/
+tmp/
+log/
+outputs/
+
+# Local research and presentation artifacts
+docs/docs/
+docs/proposal-images/
+docs/HBF-KIOXIA-proposal-images.zip
+
+# Local agent state and instructions
+.codex/
+AGENTS.md
+agents.md
+
+web/*
+!web/architecture-editor/
+web/architecture-editor/.claude/
+web/architecture-editor/design-sync-report.json
+!web/architecture-editor/index.html
+!web/architecture-editor/styles.css
+!web/architecture-editor/app.js
+
+# Claude Code session artifacts (worktrees, local state)
+.claude/

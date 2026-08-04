@@ -1,0 +1,329 @@
+{
+  "schema": {
+    "name": "hbfsim.parameter-provenance",
+    "version": 2
+  },
+  "as_of": "2026-08-01",
+  "evidence_grades": {
+    "vendor_published": "Directly stated by a primary vendor source.",
+    "literature_derived": "Derived from a public design or paper; not a measured HBF product specification.",
+    "exploratory_assumption": "Chosen to close an unpublished specification or expose a sensitivity axis.",
+    "implementation_policy": "Defines simulator or composition behavior rather than a hardware fact."
+  },
+  "allowed_overlaps": {
+    "hbf-page-size": "The 4 KiB page is both part of the assumed 512 GiB mixed-radix geometry and independently bounded by the related XL-FLASH public page size; both records are needed and their notes distinguish the claims.",
+    "hbf-hbio-bw": "The vendor-published 1600 GB/s baseline and the separately derived 8388.608 GB/s cost-unbounded array-supply upper bound intentionally share one config key; their records distinguish the evidence grades and profile scopes."
+  },
+  "model_policies": {
+    "hbm_address_mapping": {
+      "scheme": "burst-pch-bank-swizzle-v1",
+      "grade": "implementation_policy",
+      "notes": "Derived bursts interleave across stack/channel/pseudo-channel, then bank group/bank/column/row; reversible high-bit swizzles spread common power-of-two strides across pseudo-channels and banks. This is an optimistic controller mapping policy, not a JEDEC fact. The scheme id is emitted in every summary so results remain auditable if mapping policy changes."
+    },
+    "hbf_placement_mapping": {
+      "scheme": "page-striped-stack-local-mapping-v2",
+      "grade": "implementation_policy",
+      "notes": "Consecutive logical data pages are striped one per HBF stack. A deterministic 64-bit rotation changes lane ownership per stack-local mapping group so power-of-two tensor/KV strides do not pin a phase to one stack. Every stack's full L2P table is resident in its controller DRAM; dirty 512-entry groups persist as stack-local checkpoint pages. EC5 static-direct reuses the identical data-page stack owner and per-stack round-robin plane order, but omits resident-FTL lookup/update and checkpoint work. The mapping is emitted in every summary and is a simulator policy, not a published HBF address map."
+    }
+  },
+  "sources": {
+    "sandisk_hbf_fact_sheet_2025": {
+      "title": "HBF Fact Sheet",
+      "publisher": "Sandisk",
+      "date": "2025-07",
+      "url": "https://documents.sandisk.com/content/dam/asset-library/en_us/assets/public/sandisk/collateral/company/Sandisk-HBF-Fact-Sheet.pdf"
+    },
+    "kioxia_xl_flash": {
+      "title": "XL-FLASH Storage Class Memory",
+      "publisher": "KIOXIA",
+      "url": "https://americas.kioxia.com/en-us/business/memory/xlflash.html"
+    },
+    "kaist_tcad_2026_0452": {
+      "title": "Design and Analysis of GPU-HBM-HBF Architecture for Long-Context LLM Inference Considering Workload Characteristics and Signal/Power Integrity",
+      "publisher": "IEEE TCAD manuscript proof supplied by the user",
+      "url": null,
+      "status": "manuscript identifier TCAD-2026-0452; independently verify the final bibliographic record before publication"
+    },
+    "cadence_hbm4_evolution": {
+      "title": "High-Bandwidth Memory Evolution from First-Generation HBM to the Latest HBM4",
+      "publisher": "Cadence",
+      "url": "https://community.cadence.com/cadence_blogs_8/b/fv/posts/high-bandwidth-memory-evolution-from-first-generation-hbm-to-the-latest-hbm4"
+    },
+    "cadence_hbm4_performance": {
+      "title": "HBM4 Boosts Memory Performance for AI Training",
+      "publisher": "Cadence",
+      "url": "https://community.cadence.com/cadence_blogs_8/b/ip/posts/hbm4-boosts-memory-performance-for-ai-training"
+    },
+    "synopsys_hbm4_controller": {
+      "title": "DesignWare HBM4/4E Controller IP",
+      "publisher": "Synopsys",
+      "url": "https://www.synopsys.com/designware-ip/interface-ip/hbm/hbm4-controller.html"
+    },
+    "micron_hbm_tccd_application": {
+      "title": "US20250356904A1: Tccd specification for scaling bandwidth on high bandwidth memory devices",
+      "publisher": "Micron Technology, Inc.",
+      "status": "published patent application; used as a related-art example, not a normative HBM4 speed-bin table",
+      "url": "https://patents.google.com/patent/US20250356904A1/en"
+    },
+    "micron_hbm4_product": {
+      "title": "Micron HBM4",
+      "publisher": "Micron Technology, Inc.",
+      "url": "https://www.micron.com/products/memory/hbm/hbm4"
+    },
+    "cxl_specification_4_0": {
+      "title": "Compute Express Link Specification Revision 4.0 Evaluation Copy",
+      "publisher": "Compute Express Link Consortium",
+      "date": "2026-02-26",
+      "url": "https://computeexpresslink.org/wp-content/uploads/2026/02/CXL-Specification_rev4p0_ver1p0_2026February26_clean_evalcopy_v2.pdf"
+    },
+    "nvme_base_specification_2_1": {
+      "title": "NVM Express Base Specification Revision 2.1",
+      "publisher": "NVM Express, Inc.",
+      "date": "2024-08-05",
+      "url": "https://nvmexpress.org/wp-content/uploads/NVM-Express-Base-Specification-Revision-2.1-2024.08.05-Ratified.pdf"
+    },
+    "micron_cz120_cxl": {
+      "title": "Micron Launches Memory Expansion Module Portfolio to Accelerate CXL Adoption",
+      "publisher": "Micron Technology, Inc.",
+      "url": "https://investors.micron.com/news-releases/news-release-details/micron-launches-memory-expansion-module-portfolio-accelerate-cxl"
+    },
+    "kioxia_cm7v_nvme": {
+      "title": "CM7-V Series Enterprise NVMe SSD",
+      "publisher": "KIOXIA America, Inc.",
+      "url": "https://americas.kioxia.com/en-us/business/ssd/enterprise-ssd/cm7-v.html"
+    },
+    "hotinfra_2026_hbf_lpddr": {
+      "title": "Is High-Bandwidth Flash All You Need?",
+      "publisher": "HotInfra '26",
+      "date": "2026-06-28",
+      "url": "https://hotinfra.org/2026/papers/hotinfra26-final83.pdf"
+    }
+  },
+  "parameters": [
+    {
+      "config_keys": ["hbf-hbio-bw"],
+      "profile_value": 1600,
+      "unit": "GB/s per stack",
+      "grade": "vendor_published",
+      "source": "sandisk_hbf_fact_sheet_2025",
+      "source_value": "1.6 TB/s read bandwidth",
+      "notes": "The vendor's decimal 1.6 TB/s is 1600 GB/s. HBFSim treats that aggregate target as decoded external payload per stack. For a 4096 B + 224 B codeword, the vendor-anchored use-case profiles provision four raw 421.875 GB/s channels and sixteen raw 105.46875 GB/s ECC lanes. The shared TSV is 1712.5 GB/s because the model serializes both each 4320 B codeword and one 64 B internal command there. Those interface names, topology, OOB/command uplifts, and per-resource allocations are modeling assumptions, not independently published hardware facts. This record does not support the separate cost-unbounded output-upper-bound profile."
+    },
+    {
+      "config_keys": ["hbf-hbio-bw"],
+      "profile_value": "8388.608 GB/s per stack only in usecase-baseline-output-upper-bound.cfg",
+      "unit": "decoded-payload GB/s per stack",
+      "grade": "exploratory_assumption",
+      "source": null,
+      "notes": "This cost-unbounded sensitivity matches HBIO to the modeled decoded array supply: 64 planes/stack x 32 subarrays/plane x 4096 B / 1000 ns = 8388.608 GB/s. It is an arithmetic upper bound for the assumed topology, not a vendor bandwidth claim or a cost-neutral design."
+    },
+    {
+      "config_keys": ["hbf-stacks", "hbf-channels", "hbf-dies-per-channel", "hbf-planes-per-die", "hbf-blocks-per-plane", "hbf-capacity-ratio", "hbf-pages-per-block", "hbf-page-size"],
+      "profile_value": "512 GiB computed capacity per stack",
+      "unit": "bytes",
+      "grade": "exploratory_assumption",
+      "source": "sandisk_hbf_fact_sheet_2025",
+      "source_value": "16 dies x 256 Gb = 512 GB decimal",
+      "notes": "The shipped mixed-radix geometry computes 512 GiB, about 7.4% above 512 GB. Only die count and die density are vendor-published; the channel/plane/block/page decomposition is assumed. Capacity-ratio profiles derive blocks-per-plane from this same assumed geometry rather than adding an independent hardware fact."
+    },
+    {
+      "config_keys": ["hbf-page-size"],
+      "profile_value": 4096,
+      "unit": "bytes",
+      "grade": "vendor_published",
+      "source": "kioxia_xl_flash",
+      "source_value": "4 kB page",
+      "notes": "XL-FLASH is a related low-latency SLC technology, not a public HBF product measurement."
+    },
+    {
+      "config_keys": ["hbf-read-ns"],
+      "profile_value": "1000 in every usecase-*.cfg experiment profile",
+      "unit": "ns",
+      "grade": "literature_derived",
+      "source": "kaist_tcad_2026_0452",
+      "source_value": "1 us NAND-cell read; 0.29 us modeled on-chip transfer; 1.29 us total page read",
+      "sensitivity": [1000, 4000, 5000, 20000],
+      "notes": "All EC topology points use the same paper-derived 1 us cell-read value so stack count is the only hardware-axis change. With the common 250 ns modeled response and explicit command/transfer stages, HBFSim produces 1283.77 ns for one uncontended 4 KiB read. The 4 us point remains available only as an explicit sensitivity."
+    },
+    {
+      "config_keys": ["hbf-program-ns"],
+      "profile_value": "95000 in every usecase-*.cfg experiment profile",
+      "unit": "ns",
+      "grade": "literature_derived",
+      "source": "kaist_tcad_2026_0452",
+      "source_value": "100 us NAND-cell write latency",
+      "sensitivity": [50000, 75000, 95000, 100000],
+      "notes": "HBFSim exposes a separate 5000 ns verify phase, so every EC topology point uses 95000 ns program plus 5000 ns verify to reproduce the paper's assumed 100 us cell-write latency. Other program times remain explicit sensitivities, not topology-dependent defaults."
+    },
+    {
+      "config_keys": ["hbf-program-verify-ns"],
+      "profile_value": 5000,
+      "unit": "ns",
+      "grade": "exploratory_assumption",
+      "source": null,
+      "notes": "Exposed independently so program and verify uncertainty can be swept."
+    },
+    {
+      "config_keys": ["hbf-ecc-decode-latency-ns", "hbf-ecc-encode-latency-ns"],
+      "profile_value": "250 in every usecase-*.cfg experiment profile",
+      "unit": "ns response latency",
+      "grade": "exploratory_assumption",
+      "source": "kaist_tcad_2026_0452",
+      "sensitivity": [250, 500, 1000],
+      "notes": "The paper reports only a 0.29 us aggregate on-chip read latency, not an ECC-only value. Every EC topology point uses 250 ns as a common calibration residual: together with HBFSim's explicit command and transfer stages it yields a 1283.77 ns uncontended page read, close to the paper's 1.29 us. This is not a measured ECC latency. HBFSim requires the response latency to cover the raw-codeword initiation interval."
+    },
+    {
+      "config_keys": ["hbf-ecc-decode-raw-bw"],
+      "profile_value": "105.46875 GB/s per die for vendor-anchored 16-die use-case profiles; 552.96 GB/s per die for the cost-unbounded output upper bound; 135 GB/s per die for 8-die server profiles",
+      "unit": "raw codeword GB/s per die",
+      "grade": "exploratory_assumption",
+      "source": "sandisk_hbf_fact_sheet_2025",
+      "notes": "The vendor publishes only aggregate 1.6 TB/s read bandwidth, not ECC topology or throughput. Values provision each profile's assumed die count so aggregate payload throughput, after 4096 B + 224 B codeword overhead, matches its modeled HBIO read target. The 552.96 GB/s upper-bound value is derived from 8847.36 raw GB/s divided over sixteen assumed die issue ports. These are compatibility bounds, not ECC measurements."
+    },
+    {
+      "config_keys": ["hbf-ecc-encode-raw-bw"],
+      "profile_value": "equal to decode raw bandwidth in each profile, including 552.96 GB/s per die in the cost-unbounded output upper bound",
+      "unit": "raw codeword GB/s per die",
+      "grade": "exploratory_assumption",
+      "source": null,
+      "notes": "No public HBF write-side ECC throughput is available. Equal encode/decode provisioning is a symmetric baseline assumption; NAND program timing normally dominates writes and the parameter must be swept for write-path studies."
+    },
+    {
+      "config_keys": ["hbf-erase-ns"],
+      "profile_value": 2000000,
+      "unit": "ns",
+      "grade": "exploratory_assumption",
+      "source": null,
+      "notes": "No public HBF source currently supports the exact value."
+    },
+    {
+      "config_keys": ["hbf-subarrays-per-plane", "hbf-media-lanes-per-plane", "hbf-page-buffer-banks-per-plane", "hbf-channel-bw", "hbf-tsv-bw", "hbf-media-lane-bw", "hbf-logic-sram-bw", "hbf-page-buffer-bw", "hbf-flash-tsu-issue-ns", "hbf-logic-scheduler-issue-ns"],
+      "profile_value": "see resolved scenario config",
+      "unit": "mixed",
+      "grade": "exploratory_assumption",
+      "source": null,
+      "notes": "Public HBF material does not provide enough internal topology or per-stage bandwidth detail to calibrate these independently. Channel, media-lane, and page-buffer values are raw page+OOB rates in HBFSim; the shared TSV carries both raw codewords and internal commands; HBIO and logic SRAM use decoded payload rates. The local-output profile changes only lanes and banks from 16 to 32 for one output per modeled subarray. The cost-unbounded upper bound retains existing resource counts but provisions four channels at 2211.84 raw GB/s each, 8388.608 decoded GB/s logic SRAM/HBIO, an 8978.432 GB/s shared TSV for each 4320 B codeword plus its 64 B command, a 7.8125 ns per-die flash-TSU interval, and a 0.48828125 ns logic-dispatch interval. These values match the assumed 8388.608 GB/s decoded array supply rather than a published product."
+    },
+    {
+      "config_keys": ["hbf-batch-activation"],
+      "profile_value": true,
+      "unit": "boolean",
+      "grade": "implementation_policy",
+      "source": "sandisk_hbf_fact_sheet_2025",
+      "notes": "The exact batch scheduler and round-join rules are not specified by the fact sheet; independent-subarray mode is an optimistic sensitivity bound."
+    },
+    {
+      "config_keys": ["base-die-link-read-bw", "base-die-link-write-bw", "base-die-link-latency-ns"],
+      "profile_value": "use-case profiles: 2048 GB/s read, 512 GB/s write, 0 ns added fixed latency; server profiles: see resolved config",
+      "unit": "per HBF stack",
+      "grade": "literature_derived",
+      "source": "kaist_tcad_2026_0452",
+      "notes": "The TCAD design supplies the use-case 2048/512 GB/s bandwidth point but does not state a separate fixed D2D latency, so the paper-oriented profiles add 0 ns. Sandisk's public fact sheet states 1.6 TB/s first-generation HBF stack read bandwidth, but it does not publish a separate HBM-to-HBF/HBF-to-HBM D2D bandwidth or latency; 1.6 TB/s must not be relabeled as a D2D measurement. Server profiles are independent exploratory sensitivities. This is not a vendor-measured HBF interface."
+    },
+    {
+      "config_keys": ["hbm-capacity-bytes", "hbm-stacks"],
+      "profile_value": "use-case profiles: 48 GiB/stack at 2/4/6/8 stacks; server profiles: 32 GiB/stack at 4 stacks",
+      "unit": "bytes and count",
+      "grade": "exploratory_assumption",
+      "source": null,
+      "notes": "Both the 48 GiB use-case point and 32 GiB server point are simulator capacity assumptions, not declarations of shipping products. Micron's current public HBM4 page reports 36 GB for a 12-high stack; capacity and stack-count sensitivity must remain explicit."
+    },
+    {
+      "config_keys": ["hbm-channels", "hbm-pseudo-channels", "hbm-channel-width-bits"],
+      "profile_value": "use-case: 32 x 64-bit channels and two 32-bit pseudo-channels/channel; server: 16 x 64-bit channels and two 32-bit pseudo-channels/channel",
+      "unit": "count and bits",
+      "grade": "exploratory_assumption",
+      "source": "synopsys_hbm4_controller",
+      "notes": "Synopsys publishes the HBM4 limit of 32 channels/64 pseudo-channels, and Micron publishes a 2048-pin interface; 64-bit channel and 32-bit pseudo-channel widths follow arithmetically for the use-case profile. The server profile deliberately halves the channel count to a 1024-bit sensitivity point and is not claimed as the same HBM4 product topology."
+    },
+    {
+      "config_keys": ["hbm-burst-length"],
+      "profile_value": 8,
+      "unit": "data transfers per burst",
+      "grade": "literature_derived",
+      "source": "cadence_hbm4_evolution",
+      "notes": "Cadence reports BL8 for HBM4. Combined with each pseudo-channel width, HBFSim derives burst bytes rather than configuring them independently."
+    },
+    {
+      "config_keys": ["hbm-bank-groups-per-pseudo-channel", "hbm-banks-per-group"],
+      "profile_value": "use-case HBM4-width profile: 16 bank groups x 4 banks = 64 banks per pseudo-channel",
+      "unit": "count",
+      "grade": "exploratory_assumption",
+      "source": "synopsys_hbm4_controller",
+      "notes": "Synopsys publishes 64 banks per pseudo-channel for its HBM4/4E controller. The use-case 16-by-4 decomposition is the simulator's explicit mapping choice. The server 4-by-4 geometry is also an explicit exploratory assumption, not a sourced product claim."
+    },
+    {
+      "config_keys": ["hbm-pin-rate-gbps"],
+      "profile_value": "6.4 Gb/s/pin in normalized use-case profiles; 8.0 Gb/s/pin in server profiles",
+      "unit": "Gb/s per DQ pin",
+      "grade": "exploratory_assumption",
+      "source": "cadence_hbm4_performance",
+      "source_value": "8 Gb/s/pin and about 2 TB/s for a 2048-bit HBM4 interface",
+      "notes": "The server rate uses the source's 8.0 Gb/s reference point on a deliberately reduced 1024-bit topology. The 6.4 Gb/s use-case point is an unsourced normalization that yields 1638.4 GB/s on 2048 bits for comparison with 1.6 TB/s HBF. Neither combined simulator profile is a shipping-product declaration; Micron's current HBM4 page separately reports more than 11 Gb/s and more than 2.8 TB/s."
+    },
+    {
+      "config_keys": ["hbm-data-rate-per-command-clock", "hbm-tccd-s-cycles", "hbm-tccd-l-cycles"],
+      "profile_value": "4 data transfers per command clock; tCCD_S/L = 2/4 command-clock cycles",
+      "unit": "ratio and cycles",
+      "grade": "literature_derived",
+      "source": "micron_hbm_tccd_application",
+      "notes": "Micron's published patent application gives a related-art HBM example at 8 Gb/s, BL8, a 2 GHz command clock, and tCCD_S/L of 2/4 clocks so 32-byte pseudo-channel bursts fill the DQ bus. HBFSim preserves those dimensionless ratios at the normalized 6.4 Gb/s sensitivity point; this is a source-anchored extrapolation, not a normative HBM4 speed-bin table."
+    },
+    {
+      "config_keys": ["hbm-channel-row-size-bytes"],
+      "profile_value": 2048,
+      "unit": "bytes per full channel row",
+      "grade": "exploratory_assumption",
+      "source": null,
+      "notes": "The model divides this evenly across pseudo-channels, giving 1 KiB per pseudo-channel when two pseudo-channels are enabled. HBM4 product pages do not publish a complete row mapping for this profile."
+    },
+    {
+      "config_keys": ["hbm-address-mapping-ns", "hbm-trcdrd-ns", "hbm-trcdwr-ns", "hbm-tcl-ns", "hbm-tcwl-ns", "hbm-trp-ns", "hbm-tras-ns", "hbm-trc-ns", "hbm-twr-ns", "hbm-trtp-ns", "hbm-trrd-s-ns", "hbm-trrd-l-ns", "hbm-tfaw-ns", "hbm-twtr-s-ns", "hbm-twtr-l-ns", "hbm-trtw-ns"],
+      "profile_value": "0 ns address-map delay; 14/14 ns tRCD, 14 ns read latency, 10 ns write latency, and the fully resolved values in each config",
+      "unit": "absolute ns minima",
+      "grade": "exploratory_assumption",
+      "source": null,
+      "notes": "No public HBM4 vendor speed-bin table supports this complete timing set. HBFSim treats these as minimum physical delays and rounds every command issue to the derived command-clock grid. They must be swept or replaced by a pinned vendor/standard profile before absolute product claims."
+    },
+    {
+      "config_keys": ["hbf-read-buffer-pages", "hbf-page-read-queue-depth-per-stack", "hbf-write-buffer-pages", "hbf-write-buffer-flush-threshold-pages", "hbf-ctrl-dram-bytes", "hbf-ctrl-dram-latency-ns", "hbf-ctrl-dram-issue-ns", "hbf-oob-bytes"],
+      "profile_value": "see resolved scenario config",
+      "unit": "mixed",
+      "grade": "exploratory_assumption",
+      "source": null,
+      "notes": "Controller DRAM defaults to the exact full-resident page-level L2P footprint and is partitioned evenly per stack. Mapping accesses reserve a short pipelined issue slot and then observe an overlappable response latency; neither value is a published HBF limit. Capacity, metadata, buffering, and controller-credit assumptions must be swept and coupled to an area/power model before physical design claims. The page-read queue depth is per stack and bounds page children after a memory-object request is split."
+    },
+    {
+      "config_keys": ["hbf-gc-low-watermark-pages", "hbf-gc-hard-watermark-pages", "hbf-gc-reserved-free-blocks-per-plane", "hbf-gc-wear-leveling-weight"],
+      "profile_value": "see resolved scenario config",
+      "unit": "mixed",
+      "grade": "implementation_policy",
+      "source": null,
+      "notes": "FTL maintenance policy and reserve settings. They control when and how the modeled controller performs GC; they are not published HBF media parameters and require workload sensitivity sweeps."
+    },
+    {
+      "config_keys": ["hbf-write-coalescing", "hbf-write-buffer-completion-requires-flush"],
+      "profile_value": "coalescing enabled; acknowledgement before flush",
+      "unit": "boolean",
+      "grade": "implementation_policy",
+      "source": null,
+      "notes": "Controller acknowledgement and volatile coalescing semantics. Experiments must report these choices because they change burst latency and the separation between user completion and drain makespan."
+    },
+    {
+      "config_keys": ["external-backing-kind", "external-backing-capacity-bytes", "external-backing-page-size", "external-backing-media-channels", "external-backing-max-outstanding-requests", "external-backing-controller-issue-ns", "external-backing-controller-processing-ns", "external-backing-media-read-latency-ns", "external-backing-media-write-latency-ns", "external-backing-media-read-bw", "external-backing-media-write-bw", "external-backing-m2s-bw", "external-backing-s2m-bw", "external-backing-one-way-propagation-ns", "external-backing-command-bytes", "external-backing-completion-bytes"],
+      "profile_value": "On-package LPDDR: 2 TiB, 16 assumed media channels, 512 global credits, 2/20 ns assumed controller issue/process, 100 ns media latency, 2000/2000 GB/s aggregate media and dedicated M2S/S2M, zero propagation; CXL memory: 256 GiB, 8 media channels, 512 global credits, 2/20 ns controller issue/process, 90 ns media latency, 204.8 GB/s aggregate media, 36/36 GB/s M2S/S2M, 75 ns one-way propagation; NVMe SSD: 4 TiB, 4 media channels, 512 global credits, 20/500 ns controller issue/process, 80/100 us media latency, 14/7 GB/s aggregate media, 16/16 GB/s M2S/S2M, 250 ns one-way propagation; all use 4 KiB pages and 64/16 B command/completion records",
+      "unit": "mixed",
+      "grade": "exploratory_assumption",
+      "sources": ["hotinfra_2026_hbf_lpddr", "cxl_specification_4_0", "nvme_base_specification_2_1", "micron_cz120_cxl", "kioxia_cm7v_nvme"],
+      "notes": "HotInfra Table 1 anchors only the on-package LPDDR 2 TiB, 2 TB/s nominal read bandwidth, and 100 ns point. Its write bandwidth, controller/link decomposition, channel count, credits, and protocol records remain assumptions. The CXL/NVMe specifications anchor direction and request/completion semantics; the Micron and KIOXIA pages anchor only product-class capacity and throughput envelopes. Exact controller intervals, media channels, global credits, fixed latencies, protocol-record sizes, and several bandwidth values remain explicit exploratory assumptions. These profiles are reproducible no-HBF sensitivity points, not calibrated LPDDR, CPU-memory, CXL, PCIe, or SSD product models. Every field must be reported and swept before absolute claims."
+    },
+    {
+      "config_keys": ["layer-buffer-bytes", "hbf-hbm-write-buffer-bytes", "flat-hbm-bytes", "static-direct-hbm-bytes"],
+      "profile_value": "see resolved scenario config",
+      "unit": "mixed",
+      "grade": "implementation_policy",
+      "source": null,
+      "notes": "Composition policy knobs; report them as evaluated mechanisms, not hardware facts. layer-buffer-bytes is the upper bound for one EC6 layer buffer. Runtime sizes both parity buffers to the actual maximum per-layer model/KV data footprint; only scratch and metadata remain permanently HBM-resident, and the configured maximum is not statically reserved."
+    }
+  ]
+}

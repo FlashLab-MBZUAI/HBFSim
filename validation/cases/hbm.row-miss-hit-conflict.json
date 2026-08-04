@@ -1,0 +1,51 @@
+{
+  "schema": {
+    "name": "hbfsim.validation.case",
+    "version": 1
+  },
+  "case_id": "hbm.row-miss-hit-conflict",
+  "model": "hbm",
+  "comparison": {
+    "time_abs_tolerance_ns": 1e-09,
+    "time_rel_tolerance": 1e-12
+  },
+  "config": {
+    "capacity_bytes": 1048576,
+    "stacks": 1,
+    "channels_per_stack": 1,
+    "pseudo_channels_per_channel": 1,
+    "bank_groups_per_pseudo_channel": 1,
+    "banks_per_group": 1
+  },
+  "inspect_addresses": [
+    14336,
+    14464,
+    16384
+  ],
+  "requests": [
+    {
+      "id": "first-row-miss",
+      "arrival_ns": 0.0,
+      "op": "read",
+      "address_space": "logical",
+      "addr": 14336,
+      "bytes": 128
+    },
+    {
+      "id": "same-row-hit",
+      "arrival_ns": 0.0,
+      "op": "read",
+      "address_space": "logical",
+      "addr": 14464,
+      "bytes": 128
+    },
+    {
+      "id": "new-row-conflict",
+      "arrival_ns": 0.0,
+      "op": "read",
+      "address_space": "logical",
+      "addr": 16384,
+      "bytes": 128
+    }
+  ]
+}

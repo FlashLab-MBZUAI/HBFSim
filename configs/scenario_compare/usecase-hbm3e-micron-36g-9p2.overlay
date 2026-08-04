@@ -1,0 +1,33 @@
+# Micron HBM3E 12H comparison overlay.
+#
+# Apply this file after one of the usecase composition configs.  It changes
+# only the HBM generation-dependent interface/topology fields; stack count,
+# total HBM capacity, address boundary, HBF parameters, and admission windows
+# remain case/run inputs.
+#
+# Vendor-published facts:
+#   - 36 GB, 12H HBM3E
+#   - 9.2 GT/s production part speed
+#   - 16 channels, two pseudo-channels/channel, BL8
+#   - 1024 DQ pins (16 x 64-bit channels)
+# Sources:
+#   https://www.micron.com/products/memory/hbm/hbm3e/part-catalog
+#   https://assets.micron.com/adobe/assets/urn:aaid:aem:b710d8f2-7f66-44c1-a234-456e2b986347/renditions/original/as/hbm3e-product-brief.pdf
+#
+# HBFSim consequently derives 32-bit pseudo-channels, 32-byte bursts, and
+# 1177.6 GB/s peak bandwidth per stack.  The 36 GiB address-capacity mapping,
+# 16-bank-group x 4-bank decomposition, 2 KiB channel row, tCCD ratios, and
+# absolute core timings inherited from the base use-case config remain explicit
+# model assumptions rather than Micron speed-bin claims.  Refresh remains off
+# in the inherited controlled comparison profile.
+hbm-channels=16
+hbm-pseudo-channels=2
+hbm-bank-groups-per-pseudo-channel=16
+hbm-banks-per-group=4
+hbm-channel-row-size-bytes=2048
+hbm-channel-width-bits=64
+hbm-burst-length=8
+hbm-pin-rate-gbps=9.2
+hbm-data-rate-per-command-clock=4
+hbm-tccd-s-cycles=2
+hbm-tccd-l-cycles=4

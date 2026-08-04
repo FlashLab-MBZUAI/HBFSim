@@ -1,0 +1,269 @@
+{
+  "schema": {
+    "name": "hbfsim.validation.external-tools",
+    "version": 2
+  },
+  "tools": [
+    {
+      "id": "ramulator2",
+      "domain": "dram",
+      "repository": "https://github.com/CMU-SAFARI/ramulator2.git",
+      "commit": "99a0e1e87a9321587492fef5b0bd6197928f8d68",
+      "source_tree": "7c06330cd5af8c934d9141294cc50499ab097ddc",
+      "pin_checked_at": "2026-07-30",
+      "adapter": "ramulator2-stats-wrapper-v2",
+      "required_build_artifacts": [
+        "driver",
+        "library",
+        "build_log"
+      ],
+      "required_case_artifacts": [
+        "config",
+        "trace",
+        "raw_output",
+        "run_log",
+        "hbfsim_case",
+        "hbfsim_ledger"
+      ],
+      "dependencies": [
+        {
+          "id": "fmt",
+          "repository": "https://github.com/fmtlib/fmt.git",
+          "commit": "e69e5f977d458f2650bb346dadf2ad30c5320281"
+        },
+        {
+          "id": "yaml-cpp",
+          "repository": "https://github.com/jbeder/yaml-cpp.git",
+          "commit": "56e3bb550c91fd7005566f19c079cb7a503223cf"
+        }
+      ],
+      "fixture": {
+        "raw": "ramulator2.raw.json",
+        "expected": "ramulator2.expected.json"
+      },
+      "facets": [
+        {
+          "id": "dram.read-row-state-service",
+          "claim": "Exact read-byte accounting, row-state classification, and zero-arrival service span at one matched single-bank DDR4-3200W boundary.",
+          "shared_boundary": [
+            "one channel, rank, bank group, and bank",
+            "64-byte read transactions at a 0.625 ns command clock",
+            "open-row FR-FCFS with refresh disabled",
+            "closed-row miss, same-row hit, and open-row conflict",
+            "service span from the controller request epoch to final completion"
+          ],
+          "excluded": [
+            "write timing and read/write turnaround",
+            "multi-bank, multi-rank, and multi-channel scheduling",
+            "refresh and power-state behavior",
+            "HBM pseudo-channel topology and HBFSim address swizzle",
+            "queue saturation, backpressure, and starvation policy"
+          ],
+          "cases": [
+            "l3.ramulator2.read-miss",
+            "l3.ramulator2.read-hit",
+            "l3.ramulator2.read-conflict"
+          ]
+        }
+      ],
+      "cases": [
+        {
+          "case_id": "l3.ramulator2.read-miss",
+          "facet_id": "dram.read-row-state-service",
+          "hbfsim_case": "validation/cases/l3.ramulator2.read-miss.json",
+          "external_inputs": {
+            "config": "validation/external/ramulator2-ddr4-3200w.yaml",
+            "trace": "validation/external/traces/ramulator2-read-miss.trace"
+          },
+          "shared_metrics": [
+            "read_bytes",
+            "write_bytes",
+            "row_hits",
+            "row_misses",
+            "row_conflicts",
+            "service_span_ns"
+          ],
+          "hbfsim_metrics": {
+            "read_bytes": "read_bytes",
+            "write_bytes": "write_bytes",
+            "row_hits": "row_hits",
+            "row_misses": "row_misses",
+            "row_conflicts": "row_conflicts",
+            "service_span_ns": "finish_ns"
+          }
+        },
+        {
+          "case_id": "l3.ramulator2.read-hit",
+          "facet_id": "dram.read-row-state-service",
+          "hbfsim_case": "validation/cases/l3.ramulator2.read-hit.json",
+          "external_inputs": {
+            "config": "validation/external/ramulator2-ddr4-3200w.yaml",
+            "trace": "validation/external/traces/ramulator2-read-hit.trace"
+          },
+          "shared_metrics": [
+            "read_bytes",
+            "write_bytes",
+            "row_hits",
+            "row_misses",
+            "row_conflicts",
+            "service_span_ns"
+          ],
+          "hbfsim_metrics": {
+            "read_bytes": "read_bytes",
+            "write_bytes": "write_bytes",
+            "row_hits": "row_hits",
+            "row_misses": "row_misses",
+            "row_conflicts": "row_conflicts",
+            "service_span_ns": "finish_ns"
+          }
+        },
+        {
+          "case_id": "l3.ramulator2.read-conflict",
+          "facet_id": "dram.read-row-state-service",
+          "hbfsim_case": "validation/cases/l3.ramulator2.read-conflict.json",
+          "external_inputs": {
+            "config": "validation/external/ramulator2-ddr4-3200w.yaml",
+            "trace": "validation/external/traces/ramulator2-read-conflict.trace"
+          },
+          "shared_metrics": [
+            "read_bytes",
+            "write_bytes",
+            "row_hits",
+            "row_misses",
+            "row_conflicts",
+            "service_span_ns"
+          ],
+          "hbfsim_metrics": {
+            "read_bytes": "read_bytes",
+            "write_bytes": "write_bytes",
+            "row_hits": "row_hits",
+            "row_misses": "row_misses",
+            "row_conflicts": "row_conflicts",
+            "service_span_ns": "finish_ns"
+          }
+        }
+      ]
+    },
+    {
+      "id": "mqsim",
+      "domain": "flash",
+      "repository": "https://github.com/CMU-SAFARI/MQSim.git",
+      "commit": "51f0f2d3fed92d88ef4a0fa61a38024b07bf9d16",
+      "source_tree": "c5cbd1a1e75c61f2020273ff415ebf40f9446a1c",
+      "pin_checked_at": "2026-07-30",
+      "adapter": "mqsim-stats-wrapper-v2",
+      "required_build_artifacts": [
+        "executable",
+        "build_log"
+      ],
+      "required_case_artifacts": [
+        "config",
+        "workload",
+        "trace",
+        "tool_output",
+        "raw_output",
+        "run_log",
+        "hbfsim_case",
+        "hbfsim_ledger"
+      ],
+      "dependencies": [],
+      "fixture": {
+        "raw": "mqsim.raw.json",
+        "expected": "mqsim.expected.json"
+      },
+      "facets": [
+        {
+          "id": "flash.direct-data-page-io",
+          "claim": "Exact direct data-page read/program work for full-page SLC requests with mapping, cache, and GC work excluded.",
+          "shared_boundary": [
+            "one flash channel, chip, die, and plane",
+            "512-byte SLC pages and full-page requests",
+            "device data cache disabled",
+            "ideal in-memory mapping table",
+            "no preconditioning, garbage collection, wear leveling, or mapping-page I/O"
+          ],
+          "excluded": [
+            "host, PCIe, NVMe, and controller completion time",
+            "HBF HBIO, TSV, ECC, SRAM, and scheduler timing",
+            "mapping checkpoint page programs",
+            "garbage collection, relocation, and block erase behavior",
+            "partial-page update and write-buffer coalescing behavior"
+          ],
+          "cases": [
+            "l3.mqsim.data-write",
+            "l3.mqsim.write-read",
+            "l3.mqsim.overwrite"
+          ]
+        }
+      ],
+      "cases": [
+        {
+          "case_id": "l3.mqsim.data-write",
+          "facet_id": "flash.direct-data-page-io",
+          "hbfsim_case": "validation/cases/l3.mqsim.data-write.json",
+          "external_inputs": {
+            "config": "validation/external/mqsim-slc-direct.xml",
+            "workload": "validation/external/mqsim-direct-workload.xml",
+            "trace": "validation/external/traces/mqsim-data-write.trace"
+          },
+          "shared_metrics": [
+            "data_read_bytes",
+            "data_write_bytes",
+            "data_page_reads",
+            "data_page_programs"
+          ],
+          "hbfsim_metrics": {
+            "data_read_bytes": "physical_read_bytes",
+            "data_write_bytes": "data_program_payload_bytes",
+            "data_page_reads": "page_reads",
+            "data_page_programs": "data_programs"
+          }
+        },
+        {
+          "case_id": "l3.mqsim.write-read",
+          "facet_id": "flash.direct-data-page-io",
+          "hbfsim_case": "validation/cases/l3.mqsim.write-read.json",
+          "external_inputs": {
+            "config": "validation/external/mqsim-slc-direct.xml",
+            "workload": "validation/external/mqsim-direct-workload.xml",
+            "trace": "validation/external/traces/mqsim-write-read.trace"
+          },
+          "shared_metrics": [
+            "data_read_bytes",
+            "data_write_bytes",
+            "data_page_reads",
+            "data_page_programs"
+          ],
+          "hbfsim_metrics": {
+            "data_read_bytes": "physical_read_bytes",
+            "data_write_bytes": "data_program_payload_bytes",
+            "data_page_reads": "page_reads",
+            "data_page_programs": "data_programs"
+          }
+        },
+        {
+          "case_id": "l3.mqsim.overwrite",
+          "facet_id": "flash.direct-data-page-io",
+          "hbfsim_case": "validation/cases/l3.mqsim.overwrite.json",
+          "external_inputs": {
+            "config": "validation/external/mqsim-slc-direct.xml",
+            "workload": "validation/external/mqsim-direct-workload.xml",
+            "trace": "validation/external/traces/mqsim-overwrite.trace"
+          },
+          "shared_metrics": [
+            "data_read_bytes",
+            "data_write_bytes",
+            "data_page_reads",
+            "data_page_programs"
+          ],
+          "hbfsim_metrics": {
+            "data_read_bytes": "physical_read_bytes",
+            "data_write_bytes": "data_program_payload_bytes",
+            "data_page_reads": "page_reads",
+            "data_page_programs": "data_programs"
+          }
+        }
+      ]
+    }
+  ]
+}

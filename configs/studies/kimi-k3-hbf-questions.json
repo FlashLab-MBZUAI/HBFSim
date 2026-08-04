@@ -1,0 +1,107 @@
+{
+  "schema": {
+    "name": "hbfsim.kimi_k3_hbf_research_questions",
+    "version": 1
+  },
+  "study_id": "kimi-k3-single-node-hbf-v1",
+  "model_descriptor": "../workloads/kimi-k3-tp8-capacity.json",
+  "positioning": {
+    "single_node_definition": "one eight-accelerator TP8 coherence/collective domain",
+    "known_upper_point": "The published 8xMI355X 288-GiB TP8 configuration fits approximately 205.401 GiB per rank before unmodeled runtime overhead.",
+    "question_not_assumption": "HBF may make lower-HBM ranks capacity-feasible; the study must separately determine whether memory service remains feasible.",
+    "simulator_role": "adjudicate capacity, traffic, latency hiding, tier contention, and physical flash writes under one byte-identical contract"
+  },
+  "questions": [
+    {
+      "id": "Q1_scale_in",
+      "question": "At fixed TP8 compute, can HBM+HBF make Kimi K3 capacity- and memory-service-feasible on 192-GiB or 96-GiB HBM ranks, and where is the capacity-enough/bandwidth-insufficient boundary?",
+      "independent_variables": [
+        "hbm_capacity_and_stack_count",
+        "hbf_stack_count",
+        "hbf_read_latency_and_bandwidth",
+        "scheduler_credit",
+        "request_window"
+      ],
+      "baselines": [
+        "all_hbm_upper_bound",
+        "hbm_hbf",
+        "hbm_on_package_lpddr",
+        "hbm_cxl_memory",
+        "hbm_nvme_ssd"
+      ],
+      "answer_rule": "Classify capacity fit independently from modeled memory service. Among byte-identical capacity-feasible points, report offered-to-completion latency and makespan without calling any point deployable until compute and communication timing are calibrated.",
+      "negative_result_is_valid": "HBF can satisfy capacity while failing to provide enough service bandwidth or latency hiding."
+    },
+    {
+      "id": "Q2_expert_delivery",
+      "question": "For 896-expert top-16 Kimi K3, when should selected cold experts be read directly from HBF and when should they be prefetched into HBM double buffers?",
+      "independent_variables": [
+        "real_batch_expert_union",
+        "expert_temporal_locality",
+        "prefetch_accuracy_and_lookahead",
+        "direct_read_vs_staged_placement",
+        "hbm_hbf_mix"
+      ],
+      "required_evidence": "token-and-layer Kimi K3 router activations from real weights; synthetic routing is sensitivity-only",
+      "answer_rule": "For each identical token, layer, and router window, report direct access and HBM staging as a Pareto comparison over offered latency, makespan, extra HBM traffic, and HBF traffic. Declare no universal winner when the crossover depends on expert union, locality, or lookahead.",
+      "negative_result_is_valid": "No static hot set or prefetch policy dominates direct reads across realistic routing windows."
+    },
+    {
+      "id": "Q3_mutable_state",
+      "question": "Can HBF beneficially hold any mutable 1M-context Kimi K3 MLA/KDA or prefix state, or should HBF remain a read-only weight tier?",
+      "independent_variables": [
+        "context_and_batch",
+        "state_lifetime_and_reuse",
+        "append_coalescing",
+        "eviction_and_writeback",
+        "hbf_occupancy",
+        "writable_tier_hbm_vs_on_package_lpddr_vs_cxl"
+      ],
+      "required_outputs": [
+        "memory_system_service_latency",
+        "logical_write_bytes",
+        "physical_write_bytes",
+        "canonical_waf",
+        "physical_write_bytes_over_usable_hbf_capacity"
+      ],
+      "answer_rule": "Keep the mutable-state lifecycle byte-identical across placements and report latency together with logical and physical writes. A read-only run has null WAF; no HBF benefit may omit its physical-write cost or rely on an unreported lifetime model.",
+      "negative_result_is_valid": "KV/state latency or physical writes make writable DRAM/CXL preferable despite HBF capacity."
+    }
+  ],
+  "common_contract": {
+    "canonical_transaction_fields": [
+      "address",
+      "op",
+      "bytes"
+    ],
+    "same_logical_trace_different_placement": true,
+    "device_routing_must_not_require_model_semantics": true,
+    "timing_mode": "dependency_driven_between_phases_asap_bounded_within_phase",
+    "fixed_credit_must_be_reported": true,
+    "weight_and_mutable_state_traffic_separated": true,
+    "hbm_hbf_means_hybrid_not_all_hbf": true,
+    "pure_all_hbf_isolated_bound_only": true,
+    "cross_window_average_is_not_an_answer": true,
+    "nondominated_or_inconclusive_is_valid": true
+  },
+  "evidence_gates": {
+    "static_capacity_preflight_before_dynamic_replay": true,
+    "long_span_fast_path_requires_event_equivalence": true,
+    "real_router_trace_required_for_k3_expert_claim": true,
+    "synthetic_router_trace_must_be_labeled_sensitivity": true,
+    "uncalibrated_hbf_cxl_nvme_parameters_are_sensitivity_only": true,
+    "uncalibrated_on_package_lpddr_parameters_are_sensitivity_only": true,
+    "dummy_compute_timing_claim_scope": "memory_system_service_only",
+    "ttft_tpot_slo_require_calibrated_compute_communication": true,
+    "canonical_waf": "physical_write_bytes/logical_write_bytes",
+    "zero_logical_write_waf": null
+  },
+  "primary_context": [
+    "https://github.com/MoonshotAI/Kimi-K3",
+    "https://www.amd.com/en/developer/resources/technical-articles/2026/kimi-k3-on-amd-instinct-gpus.html",
+    "https://github.com/ai-dynamo/dynamo/blob/main/recipes/kimi-k3/README.md",
+    "https://arxiv.org/abs/2607.10186",
+    "https://hotinfra.org/2026/papers/hotinfra26-final83.pdf",
+    "https://arxiv.org/abs/2607.04031"
+  ]
+}

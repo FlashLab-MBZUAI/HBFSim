@@ -1,0 +1,20 @@
+{
+  "schema": {
+    "name": "hbfsim.validation.external-wrapper-output",
+    "version": 2
+  },
+  "adapter": "mqsim-stats-wrapper-v2",
+  "tool_id": "mqsim",
+  "tool_commit": "51f0f2d3fed92d88ef4a0fa61a38024b07bf9d16",
+  "provenance": "fixture",
+  "case_id": "external.fixture.mqsim.direct-page-io",
+  "raw": {
+    "page_size_bytes": 512,
+    "issued_flash_reads": 4,
+    "issued_flash_programs": 6,
+    "mapping_flash_reads": 1,
+    "mapping_flash_programs": 1,
+    "issued_flash_erases": 0,
+    "gc_executions": 0
+  }
+}

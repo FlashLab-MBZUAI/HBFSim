@@ -1,0 +1,87 @@
+{
+  "schema": {
+    "name": "hbfsim.validation.case",
+    "version": 1
+  },
+  "case_id": "hbf.gc-mapping-relocation",
+  "model": "hbf",
+  "comparison": {
+    "time_abs_tolerance_ns": 1e-09,
+    "time_rel_tolerance": 1e-12
+  },
+  "config": {
+    "stacks": 1,
+    "channels_per_stack": 1,
+    "dies_per_channel": 1,
+    "planes_per_die": 1,
+    "blocks_per_plane": 5,
+    "pages_per_block": 2,
+    "page_size_bytes": 512,
+    "oob_bytes_per_page": 128,
+    "media_lanes_per_plane": 1,
+    "subarrays_per_plane": 1,
+    "page_buffer_banks_per_plane": 1,
+    "mapping_entries_per_page": 512,
+    "batch_activation": false,
+    "read_buffer_pages": 0,
+    "auto_gc_enabled": true
+  },
+  "initial_state": {},
+  "inspect_addresses": [
+    0,
+    1024,
+    2048,
+    3072,
+    4096
+  ],
+  "requests": [
+    {
+      "id": "lpn0",
+      "arrival_ns": 0.0,
+      "op": "write",
+      "address_space": "logical",
+      "addr": 0,
+      "bytes": 512
+    },
+    {
+      "id": "checkpoint-v0",
+      "arrival_ns": 1000000.0,
+      "op": "drain",
+      "address_space": "internal",
+      "addr": 0,
+      "bytes": 0
+    },
+    {
+      "id": "lpn1",
+      "arrival_ns": 2000000.0,
+      "op": "write",
+      "address_space": "logical",
+      "addr": 512,
+      "bytes": 512
+    },
+    {
+      "id": "checkpoint-v1",
+      "arrival_ns": 3000000.0,
+      "op": "drain",
+      "address_space": "internal",
+      "addr": 0,
+      "bytes": 0
+    },
+    {
+      "id": "lpn2",
+      "arrival_ns": 4000000.0,
+      "op": "write",
+      "address_space": "logical",
+      "addr": 1024,
+      "bytes": 512
+    },
+    {
+      "id": "trigger-mapping-relocation",
+      "arrival_ns": 5000000.0,
+      "op": "drain",
+      "address_space": "internal",
+      "addr": 0,
+      "bytes": 0
+    }
+  ]
+}

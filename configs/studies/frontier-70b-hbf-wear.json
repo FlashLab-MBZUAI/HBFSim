@@ -1,0 +1,89 @@
+{
+  "schema": {
+    "name": "hbfsim.frontier_70b_hbf_wear_study_config",
+    "version": 1
+  },
+  "workload": {
+    "model": "llama31_70b",
+    "precision_profile": "w8a16-kv-bf16",
+    "window": "burst",
+    "requests": 256,
+    "num_layers": 80,
+    "kv_block_tokens": 16,
+    "kv_bytes_per_token_per_layer": 4096
+  },
+  "sampling": {
+    "method": "block_id_modulo_stratified_v1",
+    "block_stride": 64,
+    "residues": [
+      0,
+      21,
+      42
+    ],
+    "address_mapping": "order_preserving_compaction",
+    "preserved_order": [
+      "frontier_batch",
+      "model_layer",
+      "request_snapshot",
+      "token_position"
+    ]
+  },
+  "epoch_counts": [
+    1,
+    8
+  ],
+  "topologies": [
+    {
+      "id": "6H2F",
+      "hardware_config": "configs/scenario_compare/usecase-6h2f.cfg",
+      "physical_hbm_capacity_bytes": 309237645312,
+      "usable_hbf_payload_capacity_bytes": 1099511627776,
+      "expected_normalized_mutable_blocks_per_plane": 120
+    },
+    {
+      "id": "4H4F",
+      "hardware_config": "configs/scenario_compare/usecase-4h4f.cfg",
+      "physical_hbm_capacity_bytes": 206158430208,
+      "usable_hbf_payload_capacity_bytes": 2199023255552,
+      "expected_normalized_mutable_blocks_per_plane": 124
+    },
+    {
+      "id": "2H6F",
+      "hardware_config": "configs/scenario_compare/usecase-2h6f.cfg",
+      "physical_hbm_capacity_bytes": 103079215104,
+      "usable_hbf_payload_capacity_bytes": 3298534883328,
+      "expected_normalized_mutable_blocks_per_plane": 125
+    }
+  ],
+  "lifetime_sensitivity": {
+    "rate_definition": "new KV-appended tokens per second",
+    "kv_append_tokens_per_second": [
+      100,
+      500,
+      1000
+    ],
+    "cycle_definition": "assumed uniform full-media payload-write cycles",
+    "assumed_media_cycles": [
+      1000,
+      10000,
+      100000
+    ]
+  },
+  "claim_boundary": {
+    "allowed": [
+      "logical mutable-KV write demand",
+      "canonical WAF",
+      "physical write bytes per KV-append token",
+      "physical write bytes divided by usable HBF capacity",
+      "uncalibrated uniform-wear lifetime sensitivity"
+    ],
+    "forbidden": [
+      "absolute device lifetime",
+      "DWPD product claim",
+      "TTFT",
+      "TPOT",
+      "SLO",
+      "end-to-end token throughput"
+    ]
+  }
+}

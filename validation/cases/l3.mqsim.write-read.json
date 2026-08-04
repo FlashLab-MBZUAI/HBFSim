@@ -1,0 +1,59 @@
+{
+  "schema": {
+    "name": "hbfsim.validation.case",
+    "version": 1
+  },
+  "case_id": "l3.mqsim.write-read",
+  "model": "hbf",
+  "comparison": {
+    "time_abs_tolerance_ns": 1e-09,
+    "time_rel_tolerance": 1e-12
+  },
+  "config": {
+    "stacks": 1,
+    "channels_per_stack": 1,
+    "dies_per_channel": 1,
+    "planes_per_die": 1,
+    "blocks_per_plane": 16,
+    "pages_per_block": 8,
+    "page_size_bytes": 512,
+    "oob_bytes_per_page": 0,
+    "media_lanes_per_plane": 1,
+    "subarrays_per_plane": 1,
+    "page_buffer_banks_per_plane": 1,
+    "mapping_entries_per_page": 512,
+    "batch_activation": false,
+    "read_buffer_pages": 0,
+    "auto_gc_enabled": false
+  },
+  "initial_state": {},
+  "inspect_addresses": [
+    0
+  ],
+  "requests": [
+    {
+      "id": "data-write",
+      "arrival_ns": 0.0,
+      "op": "write",
+      "address_space": "logical",
+      "addr": 0,
+      "bytes": 512
+    },
+    {
+      "id": "drain",
+      "arrival_ns": 0.0,
+      "op": "drain",
+      "address_space": "internal",
+      "addr": 0,
+      "bytes": 0
+    },
+    {
+      "id": "data-read",
+      "arrival_ns": 1000000.0,
+      "op": "read",
+      "address_space": "logical",
+      "addr": 0,
+      "bytes": 512
+    }
+  ]
+}

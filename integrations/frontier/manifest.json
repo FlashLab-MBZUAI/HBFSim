@@ -1,0 +1,50 @@
+{
+  "schema": {
+    "name": "hbfsim.frontier_integration_patch",
+    "version": 1
+  },
+  "integration_id": "hbfsim.frontier-hybrid-residency.v8",
+  "upstream": {
+    "repository": "https://github.com/NetX-lab/Frontier",
+    "revision": "a4b22df8211864bf229258ecdfbe680f048f2d77"
+  },
+  "patch": {
+    "path": "integrations/frontier/a4b22df-hbfsim-hybrid-residency-v8.patch",
+    "sha256": "8ae42dfcd5ae9c8e0aaa09448254312e96d998673301f43970414c36cc700316",
+    "bytes": 178760
+  },
+  "contracts": {
+    "memory_contract_schema_version": 4,
+    "allocator_state_schema_version": 1,
+    "residency_plan_schema_version": 1,
+    "kv_lifecycle_schema_version": 1
+  },
+  "post_apply_sha256": {
+    "README.md": "b3fdfafb3e5a454bbbcd8926d5e7eb386a228b4e6f982c7ab8fa6732a55d3cf7",
+    "data/config/models/llama31_70b.json": "36efd57083a1fbc2446994be83f113565e23e00a2a9fdd98cc6ee4a6cd3603ae",
+    "docs/hbfsim-memory-ledger.md": "1552e301ecd89769fe2cdb7bb1e7a7f856c8c438c681109a6e8e644c80b880dd",
+    "frontier/config/config.py": "60e845c6c6e66b0ac6842b8fd8094dab43f6285698146edf682bb4f3997c4874",
+    "frontier/config/model_config.py": "6fe822e928941d957f1367dbbb2ad23f528a6322e46c20ace1a3067ac595d43d",
+    "frontier/config/utils.py": "0d06f1eb38ad6e519850e9239e7759d7a8c6e30802341b9a74b4fbd07e2688a5",
+    "frontier/entities/batch.py": "cc71b86f88fbb46b217025510c99baa21d20530291d577693869b689f6af657a",
+    "frontier/entities/batch_stage.py": "36e7f962968a36de8e129badfb46072b8e9a5b6970981f54a0e9a22d92526d4d",
+    "frontier/events/global_batch_end_event.py": "ba4a1d30806143bb9e0294de5a86ea223265c627f00b37327986e35a16b28b78",
+    "frontier/kv_cache/base_kv_cache_manager.py": "c489e15777e2c99a1bd20d53d7d337004ac767148eb0c48049e2dfdbb78603af",
+    "frontier/kv_cache/hbfsim_memory_contract.py": "49450c740148d7cd1c3f81cd7a6470cd478a706fa9e483a70eed16c73d112a17",
+    "frontier/kv_cache/kv_cache_block.py": "050d8d85007b09de8b1d39e169658e57852735972f1ccb7b568111a7204952b8",
+    "frontier/kv_cache/kv_cache_block_pool.py": "bea33413521ed11ac0394ba78b33c65430a4bb80b2bc91f63a8d7606dfc997f8",
+    "frontier/metrics/metrics_store.py": "4d75db96971e247bd4b84a3603a76d79d6872da0e9c72b06026009c242baa20b",
+    "frontier/profiling/common/model_config.py": "d6dfa658b4e7d2f6d855c06fef34d1e71a3c8aea3a3a204c042b2f7821021bc1",
+    "frontier/scheduler/replica_scheduler/base_replica_scheduler.py": "bafa9ad6c2274171af59a2faf4211d44e7ce609668c3877ef82e3a0d838403f4",
+    "frontier/scheduler/replica_scheduler/vllm_v1_engine_replica_scheduler.py": "7c51f18c051a72bc3ff17f5b48b4909f34210cb04742da8346d731413280de04",
+    "frontier/scheduler/replica_stage_scheduler/replica_stage_schduler.py": "a7e99f2f22d2a7b1dae2b3e8e50a119a361dbf5f79d07f647db29e14aefe4b7e",
+    "frontier/scheduler/utils/memory_planner.py": "36e59d37d54b6b3874907e7a5c50ed88d293a28162c73c7fb68d3883e4280233",
+    "frontier/simulator.py": "7fbde5d30a989b78d7f9cc5f0bacedb135b16e34e893d58996bcccb0ff22d5d9",
+    "frontier/spec_decode/mtp_runtime.py": "40bc13ac2cbafe60fe9659521825e3f06c60aa786f29ed67e584d5785aa8455a",
+    "frontier/utils/param_counter.py": "6cdd3056348aae2d76d7682d3bf3ec11218c104cbc15c9ed798b9e1831fa66ca",
+    "tests/unit/test_hbfsim_memory_contract.py": "c1677815cd39eb1bdcb6b9f92943bdb977da2c73a08c36281e8684c6af6d55a0",
+    "tests/unit/test_operator_parity_golden_matrix.py": "ec46a6acf272b142407e290b283cde0cdff1258561fd17e07b4b4eb4fb721985",
+    "tests/unit/test_param_counter_share_expert_memory_contract.py": "b1dd64b71463ef0835f21f783fbfedc7af9ebef514ea6f01bcbb462652e0840e",
+    "tests/unit/test_spec_decode_mtp_registry.py": "8b1c7de19c9eb8e8f6c21e6a22df906f1d594690f7b05da66a9dfcd43826df76"
+  }
+}

@@ -1,0 +1,800 @@
+{
+  "schema": {
+    "name": "hbfsim.validation.public-timing-anchor",
+    "version": 1
+  },
+  "anchor_id": "h100-llama2-70b-vidur-mlperf-v1",
+  "intended_use": {
+    "vidur_role": "calibration_fit_input",
+    "mlperf_role": "held_out_external_validation_only",
+    "mlperf_fit_allowed": false,
+    "bundle_alone_establishes_calibration": false,
+    "bundle_alone_establishes_external_validation": false,
+    "paper_result_eligible_by_itself": false
+  },
+  "target": {
+    "model": {
+      "id": "meta-llama/Llama-2-70b-hf",
+      "num_layers": 80,
+      "hidden_size": 8192,
+      "intermediate_size": 28672,
+      "num_attention_heads": 64,
+      "num_key_value_heads": 8,
+      "tokenizer_vocab_size": 32000,
+      "profiled_padded_vocab_size": 32768,
+      "max_model_len": 4096
+    },
+    "vidur_profile": {
+      "device_label": "h100",
+      "network_label": "h100_dgx",
+      "precision": "fp16",
+      "tensor_parallel_workers": [
+        1,
+        2,
+        4,
+        8
+      ]
+    },
+    "mlperf_held_out": {
+      "system": "NVIDIA DGX H100 (8x H100-SXM-80GB, TensorRT)",
+      "accelerators": 8,
+      "accelerator_memory": "80 GB HBM3",
+      "weight_precision": "fp8",
+      "framework": "TensorRT 10.8, CUDA 12.8",
+      "runtime_and_precision_match_vidur_fit": false
+    }
+  },
+  "sources": {
+    "vidur": {
+      "role": "calibration_fit_input",
+      "fit_allowed": true,
+      "repository": "https://github.com/microsoft/vidur.git",
+      "commit": "8383d2935bc62723a212090baa9f98ada206fc14",
+      "source_tree": "02a64382cd12b35148651afb35ccd808af1f1e82",
+      "license": "MIT",
+      "license_status": "pinned_license_file_verified",
+      "measurement_semantics": {
+        "attention": "FP16; Kineto CUDA-activity time in milliseconds; five active repetitions after two warmups",
+        "mlp": "FP16; record-function-correlated CUDA-kernel sum in milliseconds; one traced pass after an untimed warmup pass",
+        "collectives": "Kineto NCCL CUDA-activity time in milliseconds; median NCCL event aggregation; three active repetitions"
+      },
+      "artifacts": [
+        {
+          "id": "vidur.attention",
+          "kind": "csv_profile",
+          "path": "data/profiling/compute/h100/meta-llama/Llama-2-70b-hf/attention.csv",
+          "sha256": "7dfe5892da7dbf6ce8363630fff0eb143f4b32efa7cec419d17d22deb771f4c4",
+          "bytes": 10524879,
+          "rows": 58632,
+          "columns": [
+            "time_stats.attn_input_reshape.min",
+            "time_stats.attn_input_reshape.max",
+            "time_stats.attn_input_reshape.mean",
+            "time_stats.attn_input_reshape.median",
+            "time_stats.attn_input_reshape.std",
+            "time_stats.attn_decode.min",
+            "time_stats.attn_decode.max",
+            "time_stats.attn_decode.mean",
+            "time_stats.attn_decode.median",
+            "time_stats.attn_decode.std",
+            "time_stats.attn_output_reshape.min",
+            "time_stats.attn_output_reshape.max",
+            "time_stats.attn_output_reshape.mean",
+            "time_stats.attn_output_reshape.median",
+            "time_stats.attn_output_reshape.std",
+            "time_stats.attn_prefill.min",
+            "time_stats.attn_prefill.max",
+            "time_stats.attn_prefill.mean",
+            "time_stats.attn_prefill.median",
+            "time_stats.attn_prefill.std",
+            "n_embd",
+            "n_q_head",
+            "n_kv_head",
+            "block_size",
+            "num_tensor_parallel_workers",
+            "max_model_len",
+            "batch_size",
+            "prefill_chunk_size",
+            "kv_cache_size",
+            "is_prefill",
+            "attention_backend"
+          ],
+          "validation": {
+            "timing_prefixes": [
+              "time_stats.attn_input_reshape",
+              "time_stats.attn_decode",
+              "time_stats.attn_output_reshape",
+              "time_stats.attn_prefill"
+            ],
+            "nullable_timing_prefixes": [
+              "time_stats.attn_decode",
+              "time_stats.attn_prefill"
+            ],
+            "conditional_timing": [
+              {
+                "when": {
+                  "column": "is_prefill",
+                  "equals": "True"
+                },
+                "present": [
+                  "time_stats.attn_prefill"
+                ],
+                "missing": [
+                  "time_stats.attn_decode"
+                ]
+              },
+              {
+                "when": {
+                  "column": "is_prefill",
+                  "equals": "False"
+                },
+                "present": [
+                  "time_stats.attn_decode"
+                ],
+                "missing": [
+                  "time_stats.attn_prefill"
+                ]
+              }
+            ],
+            "integer_columns": [
+              "n_embd",
+              "n_q_head",
+              "n_kv_head",
+              "block_size",
+              "num_tensor_parallel_workers",
+              "max_model_len",
+              "batch_size",
+              "prefill_chunk_size",
+              "kv_cache_size"
+            ],
+            "constant_columns": {
+              "n_embd": "8192",
+              "n_q_head": "64",
+              "n_kv_head": "8",
+              "block_size": "16",
+              "max_model_len": "4096",
+              "attention_backend": "AttentionBackend.FLASH_ATTENTION"
+            },
+            "allowed_values": {
+              "num_tensor_parallel_workers": [
+                "1",
+                "2",
+                "4",
+                "8"
+              ],
+              "is_prefill": [
+                "False",
+                "True"
+              ]
+            },
+            "integer_ranges": {
+              "batch_size": {
+                "min": 1,
+                "max": 128
+              },
+              "prefill_chunk_size": {
+                "min": 0,
+                "max": 4096
+              },
+              "kv_cache_size": {
+                "min": 0,
+                "max": 4032
+              }
+            },
+            "exact_value_counts": {
+              "num_tensor_parallel_workers": {
+                "1": 14658,
+                "2": 14658,
+                "4": 14658,
+                "8": 14658
+              },
+              "is_prefill": {
+                "False": 40960,
+                "True": 17672
+              }
+            },
+            "profile_key": [
+              "num_tensor_parallel_workers",
+              "prefill_chunk_size",
+              "kv_cache_size",
+              "batch_size",
+              "is_prefill"
+            ],
+            "expected_unique_keys": 57272,
+            "expected_duplicate_rows": 1360
+          }
+        },
+        {
+          "id": "vidur.mlp",
+          "kind": "csv_profile",
+          "path": "data/profiling/compute/h100/meta-llama/Llama-2-70b-hf/mlp.csv",
+          "sha256": "fb3581ade7c02caab8a0f7d1ca1ad06a7b0fbac3d9f32a9ed46ae55d95fd6bb3",
+          "bytes": 691493,
+          "rows": 1044,
+          "columns": [
+            "time_stats.emb.min",
+            "time_stats.emb.max",
+            "time_stats.emb.mean",
+            "time_stats.emb.median",
+            "time_stats.emb.std",
+            "time_stats.input_layernorm.min",
+            "time_stats.input_layernorm.max",
+            "time_stats.input_layernorm.mean",
+            "time_stats.input_layernorm.median",
+            "time_stats.input_layernorm.std",
+            "time_stats.attn_pre_proj.min",
+            "time_stats.attn_pre_proj.max",
+            "time_stats.attn_pre_proj.mean",
+            "time_stats.attn_pre_proj.median",
+            "time_stats.attn_pre_proj.std",
+            "time_stats.attn_rope.min",
+            "time_stats.attn_rope.max",
+            "time_stats.attn_rope.mean",
+            "time_stats.attn_rope.median",
+            "time_stats.attn_rope.std",
+            "time_stats.attn_post_proj.min",
+            "time_stats.attn_post_proj.max",
+            "time_stats.attn_post_proj.mean",
+            "time_stats.attn_post_proj.median",
+            "time_stats.attn_post_proj.std",
+            "time_stats.post_attention_layernorm.min",
+            "time_stats.post_attention_layernorm.max",
+            "time_stats.post_attention_layernorm.mean",
+            "time_stats.post_attention_layernorm.median",
+            "time_stats.post_attention_layernorm.std",
+            "time_stats.mlp_up_proj.min",
+            "time_stats.mlp_up_proj.max",
+            "time_stats.mlp_up_proj.mean",
+            "time_stats.mlp_up_proj.median",
+            "time_stats.mlp_up_proj.std",
+            "time_stats.mlp_act.min",
+            "time_stats.mlp_act.max",
+            "time_stats.mlp_act.mean",
+            "time_stats.mlp_act.median",
+            "time_stats.mlp_act.std",
+            "time_stats.mlp_down_proj.min",
+            "time_stats.mlp_down_proj.max",
+            "time_stats.mlp_down_proj.mean",
+            "time_stats.mlp_down_proj.median",
+            "time_stats.mlp_down_proj.std",
+            "time_stats.add.min",
+            "time_stats.add.max",
+            "time_stats.add.mean",
+            "time_stats.add.median",
+            "time_stats.add.std",
+            "n_head",
+            "n_kv_head",
+            "n_embd",
+            "n_expanded_embd",
+            "vocab_size",
+            "use_gated_mlp",
+            "num_tokens",
+            "num_tensor_parallel_workers"
+          ],
+          "validation": {
+            "timing_prefixes": [
+              "time_stats.emb",
+              "time_stats.input_layernorm",
+              "time_stats.attn_pre_proj",
+              "time_stats.attn_rope",
+              "time_stats.attn_post_proj",
+              "time_stats.post_attention_layernorm",
+              "time_stats.mlp_up_proj",
+              "time_stats.mlp_act",
+              "time_stats.mlp_down_proj",
+              "time_stats.add"
+            ],
+            "nullable_timing_prefixes": [],
+            "conditional_timing": [],
+            "integer_columns": [
+              "n_head",
+              "n_kv_head",
+              "n_embd",
+              "n_expanded_embd",
+              "vocab_size",
+              "num_tokens",
+              "num_tensor_parallel_workers"
+            ],
+            "constant_columns": {
+              "n_head": "64",
+              "n_kv_head": "8",
+              "n_embd": "8192",
+              "n_expanded_embd": "28672",
+              "vocab_size": "32768",
+              "use_gated_mlp": "True"
+            },
+            "allowed_values": {
+              "num_tensor_parallel_workers": [
+                "1",
+                "2",
+                "4",
+                "8"
+              ]
+            },
+            "integer_ranges": {
+              "num_tokens": {
+                "min": 1,
+                "max": 4096
+              }
+            },
+            "exact_value_counts": {
+              "num_tensor_parallel_workers": {
+                "1": 261,
+                "2": 261,
+                "4": 261,
+                "8": 261
+              }
+            },
+            "profile_key": [
+              "num_tensor_parallel_workers",
+              "num_tokens"
+            ],
+            "expected_unique_keys": 1036,
+            "expected_duplicate_rows": 8
+          }
+        },
+        {
+          "id": "vidur.all_reduce",
+          "kind": "csv_profile",
+          "path": "data/profiling/network/h100_dgx/all_reduce.csv",
+          "sha256": "7bc107da2ca2790ab5aa6585eba71603bf7359dd7e7cba1b586f885cae8bcb81",
+          "bytes": 274142,
+          "rows": 2982,
+          "columns": [
+            "",
+            "time_stats.all_reduce.min",
+            "time_stats.all_reduce.max",
+            "time_stats.all_reduce.mean",
+            "time_stats.all_reduce.median",
+            "time_stats.all_reduce.std",
+            "rank",
+            "num_workers",
+            "size",
+            "collective",
+            "devices_per_node",
+            "max_devices_per_node"
+          ],
+          "validation": {
+            "timing_prefixes": [
+              "time_stats.all_reduce"
+            ],
+            "nullable_timing_prefixes": [],
+            "conditional_timing": [],
+            "integer_columns": [
+              "",
+              "rank",
+              "num_workers",
+              "size",
+              "devices_per_node",
+              "max_devices_per_node"
+            ],
+            "constant_columns": {
+              "rank": "0",
+              "collective": "all_reduce",
+              "max_devices_per_node": "8"
+            },
+            "allowed_values": {
+              "num_workers": [
+                "2",
+                "4",
+                "8"
+              ],
+              "devices_per_node": [
+                "2",
+                "4",
+                "8"
+              ]
+            },
+            "integer_ranges": {
+              "size": {
+                "min": 2048,
+                "max": 67108864
+              }
+            },
+            "exact_value_counts": {
+              "num_workers": {
+                "2": 994,
+                "4": 994,
+                "8": 994
+              },
+              "devices_per_node": {
+                "2": 994,
+                "4": 994,
+                "8": 994
+              }
+            },
+            "profile_key": [
+              "num_workers",
+              "devices_per_node",
+              "size",
+              "collective"
+            ],
+            "expected_unique_keys": 2979,
+            "expected_duplicate_rows": 3
+          }
+        },
+        {
+          "id": "vidur.send_recv",
+          "kind": "csv_profile",
+          "path": "data/profiling/network/h100_dgx/send_recv.csv",
+          "sha256": "605b758cd4791cbbd1fab8d5d990463b237346e9365823d768299368fc50c4c9",
+          "bytes": 177070,
+          "rows": 1988,
+          "columns": [
+            "",
+            "time_stats.send_recv.min",
+            "time_stats.send_recv.max",
+            "time_stats.send_recv.mean",
+            "time_stats.send_recv.median",
+            "time_stats.send_recv.std",
+            "rank",
+            "num_workers",
+            "size",
+            "collective",
+            "devices_per_node",
+            "max_devices_per_node"
+          ],
+          "validation": {
+            "timing_prefixes": [
+              "time_stats.send_recv"
+            ],
+            "nullable_timing_prefixes": [],
+            "conditional_timing": [],
+            "integer_columns": [
+              "",
+              "rank",
+              "num_workers",
+              "size",
+              "devices_per_node",
+              "max_devices_per_node"
+            ],
+            "constant_columns": {
+              "rank": "0",
+              "num_workers": "2",
+              "collective": "send_recv",
+              "max_devices_per_node": "8"
+            },
+            "allowed_values": {
+              "devices_per_node": [
+                "1",
+                "2"
+              ]
+            },
+            "integer_ranges": {
+              "size": {
+                "min": 2048,
+                "max": 67108864
+              }
+            },
+            "exact_value_counts": {
+              "devices_per_node": {
+                "1": 994,
+                "2": 994
+              }
+            },
+            "profile_key": [
+              "num_workers",
+              "devices_per_node",
+              "size",
+              "collective"
+            ],
+            "expected_unique_keys": 1986,
+            "expected_duplicate_rows": 2
+          }
+        },
+        {
+          "id": "vidur.attention_main",
+          "kind": "source_file",
+          "path": "vidur/profiling/attention/main.py",
+          "sha256": "0df1e8b9485e861763d892f30d653d863e7f3001677ec98f4fdf47fa9eabca3d",
+          "bytes": 7008,
+          "validation": {}
+        },
+        {
+          "id": "vidur.attention_wrapper",
+          "kind": "source_file",
+          "path": "vidur/profiling/attention/attention_wrapper.py",
+          "sha256": "835643f9d2b44fe0d0983845d6530c37e257f2f5ebbaedbe5f6c0ca4cdb9a09a",
+          "bytes": 5654,
+          "validation": {}
+        },
+        {
+          "id": "vidur.mlp_main",
+          "kind": "source_file",
+          "path": "vidur/profiling/mlp/main.py",
+          "sha256": "7762b4db1faecd1c43d4cfccac385d2e8f709631789296c6b04027cd33d580eb",
+          "bytes": 4598,
+          "validation": {}
+        },
+        {
+          "id": "vidur.mlp_wrapper",
+          "kind": "source_file",
+          "path": "vidur/profiling/mlp/mlp_wrapper.py",
+          "sha256": "7259c8e23a299650530765f9211c7129d8950bf06c98c4edc6ed4c104c6ddd02",
+          "bytes": 3938,
+          "validation": {}
+        },
+        {
+          "id": "vidur.record_function_tracer",
+          "kind": "source_file",
+          "path": "vidur/profiling/utils/record_function_tracer.py",
+          "sha256": "6139dfffd8b257eaf29f77a4f8cf6aeee67de2c01ed5d657a0c0c4210450970e",
+          "bytes": 2884,
+          "validation": {}
+        },
+        {
+          "id": "vidur.collectives_wrapper",
+          "kind": "source_file",
+          "path": "vidur/profiling/collectives/collectives_wrapper.py",
+          "sha256": "f6a3061f5ddc4822b6be89aa05960b2332ec36bfee43fa51db509a73f6665f37",
+          "bytes": 2045,
+          "validation": {}
+        },
+        {
+          "id": "vidur.cuda_timer",
+          "kind": "source_file",
+          "path": "vidur/profiling/common/cuda_timer.py",
+          "sha256": "c1b543013854003a8fb14fafc9c017ea1b72eaabf5de7818c8b80b8a1955a9fc",
+          "bytes": 3735,
+          "validation": {}
+        },
+        {
+          "id": "vidur.model_config",
+          "kind": "source_file",
+          "path": "vidur/profiling/common/model_config.py",
+          "sha256": "332e3fc1e354f13f65d779955967939eafebe43e9ccc8afabb703d77f535652d",
+          "bytes": 2628,
+          "validation": {}
+        },
+        {
+          "id": "vidur.license",
+          "kind": "source_file",
+          "path": "LICENSE",
+          "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+          "bytes": 1141,
+          "validation": {}
+        }
+      ]
+    },
+    "mlperf": {
+      "role": "held_out_external_validation_only",
+      "fit_allowed": false,
+      "repository": "https://github.com/mlcommons/inference_results_v5.0.git",
+      "commit": "0bc17ab3f4b33f730d7869e04cc29cb70835e513",
+      "source_tree": "cd5574a14d5a9fdae91889aaac6587c45ea57daa",
+      "license": "not_asserted_by_this_manifest",
+      "license_status": "no_top_level_license_file_at_pinned_revision",
+      "public_result_id": "5.0-0057",
+      "artifacts": [
+        {
+          "id": "mlperf.system",
+          "kind": "json_record",
+          "path": "closed/NVIDIA/systems/DGX-H100_H100-SXM-80GBx8_TRT.json",
+          "sha256": "aad87ec117b986e41e7fca9eb11f967b537a9c5c27c6ed9ab988b35458ff902e",
+          "bytes": 2049,
+          "validation": {
+            "expected_fields": {
+              "accelerator_memory_capacity": "80 GB",
+              "accelerator_memory_configuration": "HBM3",
+              "accelerator_model_name": "NVIDIA H100-SXM-80GB",
+              "accelerators_per_node": 8,
+              "division": "closed",
+              "framework": "TensorRT 10.8, CUDA 12.8",
+              "number_of_nodes": 1,
+              "status": "available",
+              "submitter": "NVIDIA",
+              "system_name": "NVIDIA DGX H100 (8x H100-SXM-80GB, TensorRT)"
+            }
+          }
+        },
+        {
+          "id": "mlperf.offline_measurement",
+          "kind": "json_record",
+          "path": "closed/NVIDIA/measurements/DGX-H100_H100-SXM-80GBx8_TRT/llama2-70b-99/Offline/DGX-H100_H100-SXM-80GBx8_TRT_Offline.json",
+          "sha256": "26d73d9bbc3625a93b1bb6497785b7fd1519fd4f90a4523150cffcd232f25390",
+          "bytes": 222,
+          "validation": {
+            "expected_fields": {
+              "input_data_types": "int32",
+              "retraining": "No",
+              "starting_weights_filename": "Original Hugginface model weights",
+              "weight_data_types": "fp8",
+              "weight_transformations": "quantization, affine fusion"
+            }
+          }
+        },
+        {
+          "id": "mlperf.server_measurement",
+          "kind": "json_record",
+          "path": "closed/NVIDIA/measurements/DGX-H100_H100-SXM-80GBx8_TRT/llama2-70b-99/Server/DGX-H100_H100-SXM-80GBx8_TRT_Server.json",
+          "sha256": "26d73d9bbc3625a93b1bb6497785b7fd1519fd4f90a4523150cffcd232f25390",
+          "bytes": 222,
+          "validation": {
+            "expected_fields": {
+              "input_data_types": "int32",
+              "retraining": "No",
+              "starting_weights_filename": "Original Hugginface model weights",
+              "weight_data_types": "fp8",
+              "weight_transformations": "quantization, affine fusion"
+            }
+          }
+        },
+        {
+          "id": "mlperf.offline_performance",
+          "kind": "mlperf_performance_summary",
+          "path": "closed/NVIDIA/results/DGX-H100_H100-SXM-80GBx8_TRT/llama2-70b-99/Offline/performance/run_1/mlperf_log_summary.txt",
+          "sha256": "b1cd9d781a81c2b66446e6e08b9c5c474f3ddd9d6112c46be134b93f900201f8",
+          "bytes": 1886,
+          "validation": {
+            "scenario": "Offline",
+            "mode": "PerformanceOnly",
+            "tokens_per_second": "31306.8",
+            "samples_per_second": "107.256",
+            "result": "VALID"
+          }
+        },
+        {
+          "id": "mlperf.server_performance",
+          "kind": "mlperf_performance_summary",
+          "path": "closed/NVIDIA/results/DGX-H100_H100-SXM-80GBx8_TRT/llama2-70b-99/Server/performance/run_1/mlperf_log_summary.txt",
+          "sha256": "fa90d4aabceb98c92e6f8978fabd1af45e318cd951603fcecf8a11195559c958",
+          "bytes": 3143,
+          "validation": {
+            "scenario": "Server",
+            "mode": "PerformanceOnly",
+            "tokens_per_second": "31106.28",
+            "samples_per_second": "106.21",
+            "result": "VALID"
+          }
+        },
+        {
+          "id": "mlperf.offline_accuracy",
+          "kind": "mlperf_accuracy_summary",
+          "path": "closed/NVIDIA/results/DGX-H100_H100-SXM-80GBx8_TRT/llama2-70b-99/Offline/accuracy/accuracy.txt",
+          "sha256": "9fdb9974f0bfea55ce43c4990a5f508b03f823ab98e9d06da79b67d278546988",
+          "bytes": 252,
+          "validation": {
+            "expected_metrics": {
+              "gen_len": 28347739,
+              "gen_num": 24576,
+              "gen_tok_len": 7170079,
+              "rouge1": "44.5775",
+              "rouge2": "22.1518",
+              "rougeL": "28.7746",
+              "rougeLsum": "42.1539",
+              "tokens_per_sample": "291.8"
+            }
+          }
+        },
+        {
+          "id": "mlperf.server_accuracy",
+          "kind": "mlperf_accuracy_summary",
+          "path": "closed/NVIDIA/results/DGX-H100_H100-SXM-80GBx8_TRT/llama2-70b-99/Server/accuracy/accuracy.txt",
+          "sha256": "ff3173b0b38b2ed3b304949f398f5225c4e88f05574fa049ab42698bb78dcc3f",
+          "bytes": 252,
+          "validation": {
+            "expected_metrics": {
+              "gen_len": 28366204,
+              "gen_num": 24576,
+              "gen_tok_len": 7199327,
+              "rouge1": "44.5683",
+              "rouge2": "22.1486",
+              "rougeL": "28.7643",
+              "rougeLsum": "42.1468",
+              "tokens_per_sample": "292.9"
+            }
+          }
+        },
+        {
+          "id": "mlperf.offline_user_conf",
+          "kind": "mlperf_user_conf",
+          "path": "closed/NVIDIA/measurements/DGX-H100_H100-SXM-80GBx8_TRT/llama2-70b-99/Offline/user.conf",
+          "sha256": "6ea5a412333359a8f4d806cad45d68ef919ba38696623683b37186b3834ff774",
+          "bytes": 114,
+          "validation": {
+            "expected_entries": {
+              "*.Offline.min_duration": "2400000",
+              "*.Offline.performance_sample_count_override": "24576",
+              "*.Offline.target_qps": "110.0"
+            }
+          }
+        },
+        {
+          "id": "mlperf.server_user_conf",
+          "kind": "mlperf_user_conf",
+          "path": "closed/NVIDIA/measurements/DGX-H100_H100-SXM-80GBx8_TRT/llama2-70b-99/Server/user.conf",
+          "sha256": "92be03f2c7054b854584b5ebccc1a9aebf45393eef7f23bae11c8dbce0f1744f",
+          "bytes": 109,
+          "validation": {
+            "expected_entries": {
+              "*.Server.min_duration": "3600000",
+              "*.Server.performance_sample_count_override": "24576",
+              "*.Server.target_qps": "107"
+            }
+          }
+        },
+        {
+          "id": "mlperf.nvidia_llama2_base_config",
+          "kind": "source_file",
+          "path": "closed/NVIDIA/configs/llama2-70b/__init__.py",
+          "sha256": "75f530e7ca50855e6a5531e1edac9a547b3b716037ccf97756046e2572916cbf",
+          "bytes": 1888,
+          "validation": {}
+        },
+        {
+          "id": "mlperf.nvidia_llama2_offline_config",
+          "kind": "source_file",
+          "path": "closed/NVIDIA/configs/llama2-70b/Offline/__init__.py",
+          "sha256": "79f734f709b79a9c59d944884042a0bb6bab7f2d56fb78f6c4393607bc291cb0",
+          "bytes": 12092,
+          "validation": {}
+        },
+        {
+          "id": "mlperf.nvidia_llama2_server_config",
+          "kind": "source_file",
+          "path": "closed/NVIDIA/configs/llama2-70b/Server/__init__.py",
+          "sha256": "255d47cec4795dfb754c53c0e6226e45330775140f7b283e6eec23603016b7ad",
+          "bytes": 11437,
+          "validation": {}
+        },
+        {
+          "id": "mlperf.nvidia_llama2_preprocessor",
+          "kind": "source_file",
+          "path": "closed/NVIDIA/code/llama2-70b/tensorrt/preprocess_data.py",
+          "sha256": "52a3f71aa06616e147e0cb47f2bd62355d6fa09bb01ce870c75a1bc07b77108d",
+          "bytes": 2929,
+          "validation": {}
+        },
+        {
+          "id": "mlperf.nvidia_llama2_generation_config",
+          "kind": "source_file",
+          "path": "closed/NVIDIA/code/llama2-70b/tensorrt/generation_config.json",
+          "sha256": "c46f7e38e4449c8411a8fe188b74da7ca65427bb85c949bb29d38c550c7c55fa",
+          "bytes": 295,
+          "validation": {}
+        },
+        {
+          "id": "mlperf.offline_performance_detail",
+          "kind": "source_file",
+          "path": "closed/NVIDIA/results/DGX-H100_H100-SXM-80GBx8_TRT/llama2-70b-99/Offline/performance/run_1/mlperf_log_detail.txt",
+          "sha256": "8fff45310f869c6a300ce56f068f37add254049f97a06b86107275e3d4c95e94",
+          "bytes": 165606,
+          "validation": {}
+        },
+        {
+          "id": "mlperf.server_performance_detail",
+          "kind": "source_file",
+          "path": "closed/NVIDIA/results/DGX-H100_H100-SXM-80GBx8_TRT/llama2-70b-99/Server/performance/run_1/mlperf_log_detail.txt",
+          "sha256": "6ebf61b9fa039bfe4ecab9f9615b156bcb79f66f98ee86ee4ad426d80bbf7e5a",
+          "bytes": 174878,
+          "validation": {}
+        }
+      ]
+    }
+  },
+  "claim_boundary": {
+    "timing_claim_state_after_import": "anchor_ready_not_calibrated",
+    "frontier_timing_usable_for_performance": false,
+    "paper_result_eligible": false,
+    "importer_can_establish": [
+      "pinned source identity and byte integrity",
+      "Vidur profile schema, row census, domain, and timing-stat sanity",
+      "measurement-method provenance for the imported Vidur files",
+      "MLPerf system, precision, accuracy, scenario, and score integrity"
+    ],
+    "importer_cannot_establish": [
+      "Frontier predictor accuracy",
+      "HBFSim end-to-end serving accuracy",
+      "equivalence between Vidur FP16 profiling and MLPerf TensorRT FP8",
+      "GPU HBM addresses or measured memory traffic",
+      "Llama 3.1 70B W8A16 timing",
+      "HBF product latency, endurance, power, or cost"
+    ],
+    "required_next_evidence": [
+      "a digest-bound predictor fit with a declared train/evaluation split",
+      "per-operator and collective prediction errors over the declared Vidur domain",
+      "an end-to-end H100 Llama 2 70B simulation that was not fitted to MLPerf",
+      "a held-out MLPerf comparison with explicit runtime and precision mismatch handling"
+    ]
+  }
+}

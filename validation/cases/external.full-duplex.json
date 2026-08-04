@@ -1,0 +1,53 @@
+{
+  "schema": {"name": "hbfsim.validation.case", "version": 1},
+  "case_id": "external.full-duplex",
+  "model": "external",
+  "comparison": {
+    "time_abs_tolerance_ns": 1e-9,
+    "time_rel_tolerance": 1e-12
+  },
+  "config": {
+    "capacity_bytes": 65536,
+    "page_size_bytes": 4096,
+    "media_channels": 2,
+    "max_outstanding_requests": 8,
+    "controller_issue_ns": 2,
+    "controller_processing_ns": 20,
+    "media_read_latency_ns": 10,
+    "media_write_latency_ns": 1000,
+    "media_read_bandwidth_GBps": 64,
+    "media_write_bandwidth_GBps": 64,
+    "m2s_bandwidth_GBps": 8,
+    "s2m_bandwidth_GBps": 8,
+    "one_way_propagation_ns": 25,
+    "command_bytes": 64,
+    "completion_bytes": 16
+  },
+  "inspect_addresses": [0, 4096],
+  "requests": [
+    {
+      "id": "slow-write",
+      "arrival_ns": 0,
+      "op": "write",
+      "address_space": "logical",
+      "addr": 0,
+      "bytes": 4096
+    },
+    {
+      "id": "fast-read",
+      "arrival_ns": 0,
+      "op": "read",
+      "address_space": "logical",
+      "addr": 4096,
+      "bytes": 4096
+    },
+    {
+      "id": "second-write",
+      "arrival_ns": 1,
+      "op": "write",
+      "address_space": "logical",
+      "addr": 8192,
+      "bytes": 2048
+    }
+  ]
+}

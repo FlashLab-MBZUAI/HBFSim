@@ -1,0 +1,4305 @@
+diff --git a/README.md b/README.md
+index 2f3cef457f165256e959cddf43957d8e6fa7289b..926b8f92ecfa180adb4b8d16a473920e952454b0 100644
+--- a/README.md
++++ b/README.md
+@@ -165,6 +165,16 @@ docker run --rm --gpus all --shm-size 16g \
+   fengyicheng/frontier-env bash
+ ```
+ 
++## Auditable KV memory ledger
++
++Frontier can attach an immutable per-batch memory contract, an exact
++hybrid-residency capacity plan, and an event-level KV block lifecycle for
++downstream memory-system studies. These artifacts describe scheduler,
++allocator, and placement structure; they are not measured GPU memory traces.
++See
++[the HBFSim memory-ledger contract](docs/hbfsim-memory-ledger.md) for the
++supported configuration, event invariants, and required consumer audit.
++
+ ## Plan
+ 
+ We will continuously release Frontier's core components to the community. We are actively developing new features and plan to support:
+diff --git a/data/config/models/llama31_70b.json b/data/config/models/llama31_70b.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..5da30930e1b71acfc78c97c8afb681a8baf4d43f
+--- /dev/null
++++ b/data/config/models/llama31_70b.json
+@@ -0,0 +1,75 @@
++{
++  "_name_or_path": "meta-llama/Llama-3.1-70B",
++  "architectures": [
++    "LlamaForCausalLM"
++  ],
++  "attention_bias": false,
++  "attention_dropout": 0.0,
++  "bos_token_id": 128000,
++  "eos_token_id": 128001,
++  "head_dim": 128,
++  "hidden_act": "silu",
++  "hidden_size": 8192,
++  "initializer_range": 0.02,
++  "intermediate_size": 28672,
++  "max_position_embeddings": 131072,
++  "mlp_bias": false,
++  "model_type": "llama",
++  "num_attention_heads": 64,
++  "num_hidden_layers": 80,
++  "num_key_value_heads": 8,
++  "pretraining_tp": 1,
++  "rms_norm_eps": 1e-05,
++  "rope_scaling": {
++    "factor": 8.0,
++    "high_freq_factor": 4.0,
++    "low_freq_factor": 1.0,
++    "original_max_position_embeddings": 8192,
++    "rope_type": "llama3"
++  },
++  "rope_theta": 500000.0,
++  "tie_word_embeddings": false,
++  "torch_dtype": "bfloat16",
++  "transformers_version": "4.43.0.dev0",
++  "use_cache": true,
++  "vocab_size": 128256,
++  "model_source_identity": {
++    "repository": "https://huggingface.co/meta-llama/Llama-3.1-70B",
++    "revision": "1605565b47bb9346c5515c34102e054115b4f98b",
++    "config_access": "gated",
++    "geometry_cross_check": "official model plus public byte-identical architecture mirrors"
++  },
++  "default_memory_precision_profile": "w8a16-kv-bf16",
++  "memory_precision_profiles": {
++    "w8a16-kv-bf16": {
++      "matrix_weight_dtype": "int8",
++      "matrix_weight_bytes": 1,
++      "non_matrix_weight_dtype": "bfloat16",
++      "non_matrix_weight_bytes": 2,
++      "kv_dtype": "bfloat16",
++      "kv_bytes": 2,
++      "activation_dtype": "bfloat16",
++      "activation_bytes": 2,
++      "quantization_scheme": "symmetric_per_output_channel",
++      "scale_dtype": "bfloat16",
++      "scale_bytes": 2,
++      "zero_point_bytes": 0,
++      "claim_scope": "memory_storage_and_traffic_only"
++    },
++    "bf16-kv-bf16": {
++      "matrix_weight_dtype": "bfloat16",
++      "matrix_weight_bytes": 2,
++      "non_matrix_weight_dtype": "bfloat16",
++      "non_matrix_weight_bytes": 2,
++      "kv_dtype": "bfloat16",
++      "kv_bytes": 2,
++      "activation_dtype": "bfloat16",
++      "activation_bytes": 2,
++      "quantization_scheme": "none",
++      "scale_dtype": null,
++      "scale_bytes": 0,
++      "zero_point_bytes": 0,
++      "claim_scope": "memory_storage_and_traffic_only"
++    }
++  }
++}
+diff --git a/docs/hbfsim-memory-ledger.md b/docs/hbfsim-memory-ledger.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..7575f421ead6532c93e78bd9a92589cd3b7a914c
+--- /dev/null
++++ b/docs/hbfsim-memory-ledger.md
+@@ -0,0 +1,149 @@
++# HBFSim memory-ledger contract
++
++Frontier can publish two audit artifacts for a downstream memory-object
++exporter:
++
++- `frontier_stage_batch_ledger.jsonl` contains one compact immutable memory
++  contract for every stage-zero batch.
++- `frontier_kv_block_lifecycle.jsonl` contains the single event-level source of
++  truth for KV lookup, admission, allocation, sharing, eviction, and release.
++
++These artifacts describe scheduler and allocator structure. They are not GPU
++load/store traces, and Frontier execution times are not physical memory
++latencies.
++
++## Compact contract v4
++
++The v4 batch contract records request token/KV frontiers, the lifecycle cursor,
++the logical block count, the canonical hybrid-residency plan, and a SHA-256
++digest of the exact ordered allocator state. It deliberately does not embed
++either the full block list or a second copy of lifecycle events. A consumer
++must replay the canonical lifecycle stream up to every cursor and compare the
++reconstructed state with the count and digest.
++
++The allocator-state digest covers compact, sorted-key JSON with this shape:
++
++```json
++{
++  "schema_version": 1,
++  "request_id": "REQUEST_ID",
++  "blocks": [
++    {"block_id": 0, "block_hash": 123, "ref_count": 1}
++  ]
++}
++```
++
++Blocks remain in request ownership order. JSON uses separators `,` and `:`
++without whitespace. The digest prevents a missing lifecycle event from being
++hidden by a plausible token frontier while avoiding the quadratic output size
++of copying a long request's full block table at every decode step.
++
++## Lifecycle invariants
++
++Event IDs are contiguous within one stream:
++
++```text
++<cluster>:replica-<id>:dp-<rank>:<12-digit-index>
++```
++
++The event set is `prefix_lookup`, `prefix_admission`, `touch`, `evict`,
++`allocate`, `cache_assign`, and `release`. Every event carries exact physical
++block IDs and reference-count transitions. Completion releases use the global
++batch-end timestamp. Duplicate event IDs, a negative reference count, eviction
++of an owned block, hash/index mismatch, duplicate ownership, or release by a
++non-owner is an invariant violation.
++
++Only complete prompt blocks are eligible for prefix lookup and cache
++assignment. If a source trace supplies an identity for a final partial prompt
++block, Frontier preserves that source metadata but excludes the partial block
++from `requested_block_hashes`, cache-hit accounting, and `cache_assign`
++events. A prefix hit must therefore never advance the cached-token frontier
++past `num_prefill_tokens`. A non-positive waiting-admission token count and a
++drained sequential event queue with incomplete requests are fatal invariant
++violations; neither condition may silently discard a request.
++
++The initial HBFSim consumer accepts one dense co-located replica with
++TP=PP=DP=1, prefix caching enabled, 16-token blocks, no preemption, no
++speculative decoding, and no KV preallocation. Frontier may run other
++configurations, but the downstream audit must reject them until their distinct
++conservation rules are implemented.
++
++With preemption disabled, the scheduler uses
++`full_request_kv_reservation_v1`: a request is admitted only if the sum of the
++maximum KV frontiers of all running requests and the candidate fits the
++physical block pool. A request's maximum frontier is
++`ceil((prefill_tokens + decode_tokens - 1) / block_size)`; the final generated
++token is not consumed as input. Prefix sharing may lower physical occupancy,
++but admission does not assume a future cache hit. Every compact batch contract
++records the policy name, and a downstream consumer must independently replay
++the lifecycle and reject an absent policy, overcommit, preemption, or allocator
++deadlock.
++
++## Exact model-memory ledger
++
++The HBFSim integration also binds a named memory-precision profile from the
++model configuration. The Llama 3.1 70B production profile is
++`w8a16-kv-bf16`: symmetric INT8 matrix weights, one BF16 scale per output
++channel, no zero point, BF16 non-matrix parameters, BF16 KV, and BF16
++activations. `bf16-kv-bf16` is the capacity-sensitivity profile. The emitted
++system metrics contain exact matrix payload, non-matrix payload, quantization
++metadata, and category totals; consumers must compare those values against an
++independent model descriptor rather than infer memory from a single
++bytes-per-parameter multiplier.
++
++Scaled profiles are deliberately fail-closed to dense monolithic
++PP=TP=EP=1 execution without MTP. Other layouts require an explicit sharding
++and metadata-placement contract before they can be used as evidence.
++
++## Hybrid-residency capacity contract
++
++The HBFSim path uses only `num_blocks_mode=hybrid_residency`. It rejects the
++old parameter-resident derivation in which KV capacity was whatever remained
++after all weights were subtracted from HBM. Instead, every batch binds one
++exact plan with:
++
++```text
++unique resident footprint =
++    immutable weight backing
++  + logical KV arena
++  + block-table metadata
++  + configured runtime/activation overhead
++
++capacity pressure =
++    unique resident footprint / physical HBM capacity
++
++physical HBM =
++    two active-weight buffers
++  + hot KV
++  + block-table metadata
++  + runtime/activation overhead
++  + unused HBM
++
++backing =
++    read-only immutable weights + mutable cold/overflow KV
++```
++
++The main grid is exactly `0.75, 1.0, 1.25, 1.5, 2.0`, and physical HBM is
++exactly `96, 192, 288, 384 GiB`. Whole KV blocks and their four-byte block-table
++entries are floor-divided below the target; the rounding slack must be smaller
++than one block plus one entry. A point below the immutable-weight and runtime
++floor fails explicitly rather than shrinking the model or pretending weights
++fit.
++
++Two active-weight buffers are sized from an exact object ledger: embedding,
++one transformer layer, final normalization, and output head are reconstructed
++independently, and the largest object sets each slot. Runtime overhead must be
++a positive, digest-bound input. Until it is hardware profiled, the plan labels
++it `configured_unprofiled_sensitivity` and sets
++`hardware_capacity_calibrated=false`; only sensitivity claims are permitted.
++Weights are always read-only. KV is the only mutable data class.
++
++## Claim boundary
++
++The ledger and lifecycle artifacts support scheduler, allocator, residency,
++and memory-system service analyses. When Frontier runs with dummy execution
++timing, request latency, TTFT, TPOT, throughput-over-time, and SLO claims are
++ineligible. Those claims require a separately validated per-layer compute and
++communication timing source. A dummy-timed run may still be used to verify
++multi-request batching, prefix/KV lifecycles, capacity conservation, and the
++byte-identical input trace.
+diff --git a/frontier/config/config.py b/frontier/config/config.py
+index e40aeefd1f45ad1ecb6bad09ed0c4b50daaec151..a56a309c1a9c514ec4603b0a31ae8b68f03f4bd3 100644
+--- a/frontier/config/config.py
++++ b/frontier/config/config.py
+@@ -588,7 +588,7 @@ class VllmV1SchedulerConfig(BaseReplicaSchedulerConfig):
+     num_blocks_mode: str = field(
+         default="memory_planner_profiled",
+         metadata={
+-            "help": "How to initialize num_blocks: 'memory_planner' (auto-derive with parameter-only estimate), 'memory_planner_profiled' (auto-derive with calibrated non-KV overhead), or 'explicit' (require num_blocks>0)."
++            "help": "How to initialize num_blocks: 'hybrid_residency' (HBFSim unique-footprint contract), 'memory_planner' (auto-derive with parameter-only estimate), 'memory_planner_profiled' (auto-derive with calibrated non-KV overhead), or 'explicit' (require num_blocks>0)."
+         },
+     )
+     gpu_memory_utilization: Optional[float] = field(
+@@ -600,7 +600,19 @@ class VllmV1SchedulerConfig(BaseReplicaSchedulerConfig):
+     non_kv_cache_overhead_bytes: int = field(
+         default=0,
+         metadata={
+-            "help": "Calibrated non-KV memory overhead in bytes for memory_planner_profiled mode."
++            "help": "Non-KV runtime/activation overhead in bytes. It is calibrated input for memory_planner_profiled and a required explicit sensitivity for hybrid_residency."
++        },
++    )
++    hybrid_physical_hbm_capacity_bytes: int = field(
++        default=0,
++        metadata={
++            "help": "Exact physical HBM capacity denominator for hybrid_residency. Canonical HBFSim values are 96, 192, 288, or 384 GiB."
++        },
++    )
++    hybrid_capacity_pressure_target: Optional[float] = field(
++        default=None,
++        metadata={
++            "help": "Unique resident footprint / physical HBM target for hybrid_residency. Canonical grid: 0.75, 1.0, 1.25, 1.5, 2.0."
+         },
+     )
+     runtime_weights_memory_source: str = field(
+@@ -673,7 +685,12 @@ class VllmV1SchedulerConfig(BaseReplicaSchedulerConfig):
+     )
+ 
+     def __post_init__(self) -> None:
+-        allowed_modes = {"memory_planner", "memory_planner_profiled", "explicit"}
++        allowed_modes = {
++            "hybrid_residency",
++            "memory_planner",
++            "memory_planner_profiled",
++            "explicit",
++        }
+         if self.num_blocks_mode not in allowed_modes:
+             raise ValueError(
+                 "VllmV1SchedulerConfig.num_blocks_mode must be one of "
+@@ -693,6 +710,66 @@ class VllmV1SchedulerConfig(BaseReplicaSchedulerConfig):
+                 f"{self.non_kv_cache_overhead_bytes!r}"
+             )
+ 
++        canonical_hbm_capacities = {
++            96 * 1024**3,
++            192 * 1024**3,
++            288 * 1024**3,
++            384 * 1024**3,
++        }
++        canonical_pressures = {0.75, 1.0, 1.25, 1.5, 2.0}
++        if self.num_blocks_mode == "hybrid_residency":
++            if int(self.num_blocks or 0) != 0:
++                raise ValueError(
++                    "VllmV1SchedulerConfig hybrid_residency derives "
++                    "num_blocks and requires num_blocks=0"
++                )
++            if (
++                self.hybrid_physical_hbm_capacity_bytes
++                not in canonical_hbm_capacities
++            ):
++                raise ValueError(
++                    "VllmV1SchedulerConfig.hybrid_physical_hbm_capacity_bytes "
++                    "must be exactly 96, 192, 288, or 384 GiB in "
++                    "hybrid_residency"
++                )
++            if (
++                self.hybrid_capacity_pressure_target
++                not in canonical_pressures
++            ):
++                raise ValueError(
++                    "VllmV1SchedulerConfig.hybrid_capacity_pressure_target "
++                    "must be one of 0.75, 1.0, 1.25, 1.5, or 2.0"
++                )
++            if self.non_kv_cache_overhead_bytes <= 0:
++                raise ValueError(
++                    "VllmV1SchedulerConfig hybrid_residency requires a "
++                    "positive non_kv_cache_overhead_bytes sensitivity"
++                )
++            if self.gpu_memory_utilization is not None:
++                raise ValueError(
++                    "VllmV1SchedulerConfig hybrid_residency uses explicit "
++                    "physical HBM capacity and forbids gpu_memory_utilization"
++                )
++            if self.enable_runtime_non_kv_cache_overhead_profiling:
++                raise ValueError(
++                    "VllmV1SchedulerConfig hybrid_residency does not accept "
++                    "runtime overhead profiling; provide a digest-bound "
++                    "sensitivity value"
++                )
++            if self.runtime_weights_memory_source != "param_counter":
++                raise ValueError(
++                    "VllmV1SchedulerConfig hybrid_residency requires exact "
++                    "param_counter weight accounting"
++                )
++        elif (
++            self.hybrid_physical_hbm_capacity_bytes != 0
++            or self.hybrid_capacity_pressure_target is not None
++        ):
++            raise ValueError(
++                "VllmV1SchedulerConfig hybrid capacity fields require "
++                "num_blocks_mode='hybrid_residency'"
++            )
++
+         allowed_hash_algorithms = {"builtin", "sha256"}
+         if self.prefix_caching_hash_algo not in allowed_hash_algorithms:
+             raise ValueError(
+@@ -1925,6 +2002,7 @@ class ReplicaConfig:
+     cluster_prefix: str = None
+     local_expert_num: int = None
+     model_name: str = "meta-llama/Llama-2-7b-hf"
++    memory_precision_profile: str = "model_default"
+     data_parallel_size: int = None  # to be set in monolithic mode
+ 
+     def __post_init__(self):
+@@ -1932,6 +2010,11 @@ class ReplicaConfig:
+         self.model_config: BaseModelConfig = BaseModelConfig.create_from_name(
+             self.model_name
+         )
++        self.memory_precision_profile = (
++            self.model_config.get_memory_precision_profile(
++                self.memory_precision_profile
++            ).profile_id
++        )
+         self.device_config: BaseDeviceSKUConfig = (
+             BaseDeviceSKUConfig.create_from_type_string(self.device)
+         )
+@@ -4893,6 +4976,9 @@ class ClusterConfig:
+ 
+         return ReplicaConfig(
+             model_name=get_field_value("model_name"),
++            memory_precision_profile=get_field_value(
++                "memory_precision_profile"
++            ),
+             memory_margin_fraction=get_field_value("memory_margin_fraction"),
+             num_pipeline_stages=num_pipeline_stages,
+             attn_tensor_parallel_size=attn_tensor_parallel_size,
+@@ -5640,6 +5726,7 @@ class ClusterConfig:
+ 
+         return ReplicaConfig(
+             model_name=original_config.model_name,
++            memory_precision_profile=original_config.memory_precision_profile,
+             memory_margin_fraction=original_config.memory_margin_fraction,
+             num_pipeline_stages=original_config.num_pipeline_stages,
+             attn_tensor_parallel_size=original_config.attn_tensor_parallel_size,
+diff --git a/frontier/config/model_config.py b/frontier/config/model_config.py
+index 0d58da41eb61fb0af8b1a8c4b1d62de61bb02709..b15c5ea3d460d7a9707d09715160694f05fcf4ed 100644
+--- a/frontier/config/model_config.py
++++ b/frontier/config/model_config.py
+@@ -156,6 +156,159 @@ class QuantizationConfig:
+         }
+ 
+ 
++@dataclass(frozen=True)
++class MemoryPrecisionConfig:
++    """Exact parameter/KV storage contract, independent of compute timing."""
++
++    profile_id: str
++    matrix_weight_dtype: str
++    matrix_weight_bytes: int
++    non_matrix_weight_dtype: str
++    non_matrix_weight_bytes: int
++    kv_dtype: str
++    kv_bytes: int
++    activation_dtype: str
++    activation_bytes: int
++    quantization_scheme: str
++    scale_dtype: Optional[str]
++    scale_bytes: int
++    zero_point_bytes: int
++    claim_scope: str
++
++    @staticmethod
++    def _validate_dtype_bytes(dtype: str, byte_count: int, path: str) -> None:
++        precision = PrecisionType.from_string(dtype)
++        expected = precision.bytes_per_element
++        if not expected.is_integer() or int(expected) != int(byte_count):
++            raise ValueError(
++                f"{path} dtype/bytes mismatch: dtype={dtype!r}, "
++                f"bytes={byte_count!r}, expected={expected!r}"
++            )
++
++    def __post_init__(self) -> None:
++        if not self.profile_id:
++            raise ValueError("memory precision profile_id must be non-empty")
++        for path, dtype, byte_count in (
++            (
++                "matrix_weight",
++                self.matrix_weight_dtype,
++                self.matrix_weight_bytes,
++            ),
++            (
++                "non_matrix_weight",
++                self.non_matrix_weight_dtype,
++                self.non_matrix_weight_bytes,
++            ),
++            ("kv", self.kv_dtype, self.kv_bytes),
++            ("activation", self.activation_dtype, self.activation_bytes),
++        ):
++            if byte_count <= 0:
++                raise ValueError(f"{path}_bytes must be positive")
++            self._validate_dtype_bytes(dtype, byte_count, path)
++        if self.zero_point_bytes != 0:
++            raise ValueError(
++                "only symmetric weight storage with zero_point_bytes=0 is supported"
++            )
++        if self.quantization_scheme == "none":
++            if self.scale_dtype is not None or self.scale_bytes != 0:
++                raise ValueError(
++                    "quantization_scheme='none' requires no scale storage"
++                )
++        elif self.quantization_scheme == "symmetric_per_output_channel":
++            if self.scale_dtype is None or self.scale_bytes <= 0:
++                raise ValueError(
++                    "symmetric_per_output_channel requires a scale dtype/bytes"
++                )
++            self._validate_dtype_bytes(
++                self.scale_dtype,
++                self.scale_bytes,
++                "scale",
++            )
++        else:
++            raise ValueError(
++                "quantization_scheme must be 'none' or "
++                "'symmetric_per_output_channel'"
++            )
++        if self.claim_scope != "memory_storage_and_traffic_only":
++            raise ValueError(
++                "memory precision claim_scope must be "
++                "'memory_storage_and_traffic_only'"
++            )
++
++    @classmethod
++    def from_dict(
++        cls,
++        profile_id: str,
++        payload: Dict[str, Any],
++    ) -> "MemoryPrecisionConfig":
++        expected = {
++            "matrix_weight_dtype",
++            "matrix_weight_bytes",
++            "non_matrix_weight_dtype",
++            "non_matrix_weight_bytes",
++            "kv_dtype",
++            "kv_bytes",
++            "activation_dtype",
++            "activation_bytes",
++            "quantization_scheme",
++            "scale_dtype",
++            "scale_bytes",
++            "zero_point_bytes",
++            "claim_scope",
++        }
++        if set(payload) != expected:
++            raise ValueError(
++                f"memory precision profile {profile_id!r} keys mismatch: "
++                f"missing={sorted(expected - set(payload))}, "
++                f"extra={sorted(set(payload) - expected)}"
++            )
++        return cls(profile_id=profile_id, **payload)
++
++    @classmethod
++    def native(cls, torch_dtype: str) -> "MemoryPrecisionConfig":
++        precision = PrecisionType.from_torch_dtype(torch_dtype)
++        byte_count = precision.bytes_per_element
++        if not byte_count.is_integer():
++            raise ValueError(
++                "native model memory precision requires whole-byte storage"
++            )
++        dtype = precision.value
++        return cls(
++            profile_id=f"native-{dtype}-kv-{dtype}",
++            matrix_weight_dtype=dtype,
++            matrix_weight_bytes=int(byte_count),
++            non_matrix_weight_dtype=dtype,
++            non_matrix_weight_bytes=int(byte_count),
++            kv_dtype=dtype,
++            kv_bytes=int(byte_count),
++            activation_dtype=dtype,
++            activation_bytes=int(byte_count),
++            quantization_scheme="none",
++            scale_dtype=None,
++            scale_bytes=0,
++            zero_point_bytes=0,
++            claim_scope="memory_storage_and_traffic_only",
++        )
++
++    def to_dict(self) -> Dict[str, Any]:
++        return {
++            "profile_id": self.profile_id,
++            "matrix_weight_dtype": self.matrix_weight_dtype,
++            "matrix_weight_bytes": self.matrix_weight_bytes,
++            "non_matrix_weight_dtype": self.non_matrix_weight_dtype,
++            "non_matrix_weight_bytes": self.non_matrix_weight_bytes,
++            "kv_dtype": self.kv_dtype,
++            "kv_bytes": self.kv_bytes,
++            "activation_dtype": self.activation_dtype,
++            "activation_bytes": self.activation_bytes,
++            "quantization_scheme": self.quantization_scheme,
++            "scale_dtype": self.scale_dtype,
++            "scale_bytes": self.scale_bytes,
++            "zero_point_bytes": self.zero_point_bytes,
++            "claim_scope": self.claim_scope,
++        }
++
++
+ # ============================================================================
+ # Model Architecture Constants
+ # ============================================================================
+@@ -190,6 +343,29 @@ QK_NORM_MODEL_TYPE_ALLOWLIST = {
+ }
+ 
+ 
++def _infer_tie_word_embeddings_from_hf_config(cfg: Dict[str, Any]) -> bool:
++    """Resolve embedding sharing from explicit or architecture-level metadata."""
++    explicit_value = cfg.get("tie_word_embeddings")
++    if explicit_value is not None:
++        if not isinstance(explicit_value, bool):
++            raise ValueError(
++                "tie_word_embeddings must be bool when present, "
++                f"got {type(explicit_value)}"
++            )
++        return explicit_value
++
++    model_type = str(cfg.get("model_type", "")).lower()
++    if model_type == "llama":
++        return False
++
++    architectures = [
++        str(value).lower() for value in cfg.get("architectures", [])
++    ]
++    if any("llamaforcausallm" in value for value in architectures):
++        return False
++    return True
++
++
+ def _infer_attn_output_gate_from_hf_config(cfg: Dict[str, Any]) -> bool:
+     explicit_value = cfg.get("attn_output_gate")
+     if explicit_value is not None:
+@@ -248,6 +424,7 @@ class BaseModelConfig(BaseFixedConfig):
+     vocab_size: int
+     use_qk_norm: bool = False
+     attn_output_gate: bool = False
++    tie_word_embeddings: bool = True
+     is_neox_style: Optional[bool] = True
+     rope_theta: Optional[float] = None
+     rope_scaling: Optional[Dict[str, Any]] = None
+@@ -261,6 +438,8 @@ class BaseModelConfig(BaseFixedConfig):
+     # Model type from config.json (normalized to lowercase when provided)
+     model_type: Optional[str] = None
+     model_architecture_profile: Optional[str] = None
++    source_config_path: Optional[str] = None
++    source_config_sha256: Optional[str] = None
+ 
+     # Architecture-specific structural fields used by registered profiles.
+     model_arch: str = ModelArch.GENERIC
+@@ -292,6 +471,11 @@ class BaseModelConfig(BaseFixedConfig):
+ 
+     # Quantization configuration (aligned with stepfun-vllm Fp8Config)
+     quantization_config: Optional[QuantizationConfig] = None
++    memory_precision_profiles: Dict[str, MemoryPrecisionConfig] = field(
++        default_factory=dict
++    )
++    default_memory_precision_profile: Optional[str] = None
++    model_source_identity: Optional[Dict[str, Any]] = None
+ 
+     # Explicit fused add+norm capability. When None, decide from model-type allowlist.
+     fused_add_norm_capability: Optional[bool] = None
+@@ -308,6 +492,23 @@ class BaseModelConfig(BaseFixedConfig):
+             self.model_type = str(self.model_type).lower()
+         if self.model_architecture_profile is not None:
+             self.model_architecture_profile = str(self.model_architecture_profile).lower()
++        if (self.source_config_path is None) != (
++            self.source_config_sha256 is None
++        ):
++            raise ValueError(
++                "source_config_path and source_config_sha256 must either both "
++                "be set or both be None"
++            )
++        if self.source_config_sha256 is not None:
++            digest = str(self.source_config_sha256)
++            if (
++                len(digest) != 64
++                or digest != digest.lower()
++                or any(character not in "0123456789abcdef" for character in digest)
++            ):
++                raise ValueError(
++                    "source_config_sha256 must be 64 lowercase hexadecimal digits"
++                )
+ 
+         # Validate model_arch
+         if self.model_arch not in ModelArch.VALID_ARCHS:
+@@ -319,6 +520,22 @@ class BaseModelConfig(BaseFixedConfig):
+ 
+         # Validate torch_dtype
+         PrecisionType.from_torch_dtype(self.torch_dtype)
++        if self.memory_precision_profiles:
++            if self.default_memory_precision_profile not in self.memory_precision_profiles:
++                raise ValueError(
++                    "default_memory_precision_profile must name one configured "
++                    "memory precision profile"
++                )
++            for profile_id, profile in self.memory_precision_profiles.items():
++                if profile.profile_id != profile_id:
++                    raise ValueError(
++                        "memory precision profile key/profile_id mismatch: "
++                        f"{profile_id!r} != {profile.profile_id!r}"
++                    )
++        elif self.default_memory_precision_profile is not None:
++            raise ValueError(
++                "default_memory_precision_profile requires configured profiles"
++            )
+ 
+         if self.fused_add_norm_capability is not None and not isinstance(
+             self.fused_add_norm_capability, bool
+@@ -437,6 +654,28 @@ class BaseModelConfig(BaseFixedConfig):
+         """Get default model precision derived from torch_dtype."""
+         return PrecisionType.from_torch_dtype(self.torch_dtype)
+ 
++    def get_memory_precision_profile(
++        self,
++        profile_id: Optional[str] = None,
++    ) -> MemoryPrecisionConfig:
++        requested = profile_id
++        if requested in {None, "", "model_default"}:
++            requested = self.default_memory_precision_profile
++        native_profile = MemoryPrecisionConfig.native(self.torch_dtype)
++        if requested is None:
++            return native_profile
++        if (
++            not self.memory_precision_profiles
++            and requested == native_profile.profile_id
++        ):
++            return native_profile
++        if requested not in self.memory_precision_profiles:
++            raise ValueError(
++                f"Unknown memory precision profile {requested!r}; available="
++                f"{sorted(self.memory_precision_profiles)}"
++            )
++        return self.memory_precision_profiles[requested]
++
+     def get_quant_signature_hash(self) -> str:
+         """Get short hash of quantization signature for cache keys."""
+         if self.quantization_config is None:
+@@ -556,8 +795,11 @@ class BaseModelConfig(BaseFixedConfig):
+         file_path = os.path.join(base_dir, f"{safe_name}.json")
+         if not os.path.exists(file_path):
+             raise ValueError(f"[BaseModelConfig] Unknown model '{name}' and no JSON found at {file_path}")
+-        with open(file_path, "r", encoding="utf-8") as f:
+-            cfg = json.load(f)
++        with open(file_path, "rb") as f:
++            source_config_bytes = f.read()
++        cfg = json.loads(source_config_bytes.decode("utf-8"))
++        source_config_path = file_path.replace(os.sep, "/")
++        source_config_sha256 = hashlib.sha256(source_config_bytes).hexdigest()
+ 
+         # Required fields (fail fast)
+         required = [
+@@ -606,6 +848,7 @@ class BaseModelConfig(BaseFixedConfig):
+         use_qkv_bias = bool(cfg.get("use_qkv_bias", cfg.get("qkv_bias", False)))
+         use_qk_norm = _infer_use_qk_norm_from_hf_config(cfg)
+         attn_output_gate = _infer_attn_output_gate_from_hf_config(cfg)
++        tie_word_embeddings = _infer_tie_word_embeddings_from_hf_config(cfg)
+         if "use_qkv_bias" not in cfg and "qkv_bias" not in cfg:
+             # Check attention_bias first (explicit field in HF configs)
+             if "attention_bias" in cfg:
+@@ -688,6 +931,34 @@ class BaseModelConfig(BaseFixedConfig):
+         # Parse quantization configuration
+         quant_config_dict = cfg.get("quantization_config")
+         quantization_config = QuantizationConfig.from_dict(quant_config_dict)
++        raw_memory_profiles = cfg.get("memory_precision_profiles", {})
++        if not isinstance(raw_memory_profiles, dict):
++            raise ValueError("memory_precision_profiles must be an object")
++        memory_precision_profiles = {}
++        for profile_id, profile_payload in raw_memory_profiles.items():
++            if not isinstance(profile_id, str) or not profile_id:
++                raise ValueError(
++                    "memory_precision_profiles keys must be non-empty strings"
++                )
++            if not isinstance(profile_payload, dict):
++                raise ValueError(
++                    f"memory precision profile {profile_id!r} must be an object"
++                )
++            memory_precision_profiles[profile_id] = (
++                MemoryPrecisionConfig.from_dict(profile_id, profile_payload)
++            )
++        default_memory_precision_profile = cfg.get(
++            "default_memory_precision_profile"
++        )
++        if default_memory_precision_profile is not None:
++            default_memory_precision_profile = str(
++                default_memory_precision_profile
++            )
++        model_source_identity = cfg.get("model_source_identity")
++        if model_source_identity is not None and not isinstance(
++            model_source_identity, dict
++        ):
++            raise ValueError("model_source_identity must be an object")
+         fused_add_norm_capability = cls._resolve_fused_add_norm_capability(cfg)
+ 
+         base_kwargs = dict(
+@@ -702,6 +973,7 @@ class BaseModelConfig(BaseFixedConfig):
+             use_qkv_bias=use_qkv_bias,
+             use_qk_norm=use_qk_norm,
+             attn_output_gate=attn_output_gate,
++            tie_word_embeddings=tie_word_embeddings,
+             activation=activation,
+             norm=norm,
+             post_attn_norm=post_attn_norm,
+@@ -710,6 +982,8 @@ class BaseModelConfig(BaseFixedConfig):
+             rope_scaling=rope_scaling,
+             model_type=model_type_lower or None,
+             model_architecture_profile=cfg.get("model_architecture_profile"),
++            source_config_path=source_config_path,
++            source_config_sha256=source_config_sha256,
+             model_arch=model_arch,
+             share_expert_dim=share_expert_dim,
+             share_q_dim=share_q_dim,
+@@ -725,6 +999,9 @@ class BaseModelConfig(BaseFixedConfig):
+             v_head_dim=v_head_dim,
+             torch_dtype=torch_dtype,
+             quantization_config=quantization_config,
++            memory_precision_profiles=memory_precision_profiles,
++            default_memory_precision_profile=default_memory_precision_profile,
++            model_source_identity=model_source_identity,
+             fused_add_norm_capability=fused_add_norm_capability,
+             moe_layers_enum=cfg.get("moe_layers_enum"),
+         )
+diff --git a/frontier/config/utils.py b/frontier/config/utils.py
+index add74fee1f990d49edfdb41ecb49b796d1f12ad8..10ad4d36641b5223e6efd3de890f6203f3e7cf6b 100644
+--- a/frontier/config/utils.py
++++ b/frontier/config/utils.py
+@@ -103,6 +103,11 @@ def is_subclass(cls, parent: type) -> bool:
+ def dataclass_to_dict(obj):
+     if isinstance(obj, list):
+         return [dataclass_to_dict(item) for item in obj]
++    elif isinstance(obj, dict):
++        return {
++            key: dataclass_to_dict(value)
++            for key, value in obj.items()
++        }
+     elif is_dataclass(obj):
+         data = {}
+         for field in fields(obj):
+diff --git a/frontier/entities/batch.py b/frontier/entities/batch.py
+index 36f5b7297993a2af09cbfdcb54baaeb32f8e3309..fcb18e78ccfada15e3e15db4492804940fa7da77 100644
+--- a/frontier/entities/batch.py
++++ b/frontier/entities/batch.py
+@@ -1,8 +1,12 @@
++from copy import deepcopy
+ from dataclasses import dataclass
+ from typing import Dict, Iterable, List, Optional
+ 
+ from frontier.entities.base_entity import BaseEntity
+ from frontier.entities.request import Request
++from frontier.kv_cache.hbfsim_memory_contract import (
++    MEMORY_CONTRACT_SCHEMA_VERSION,
++)
+ from frontier.logger import init_logger
+ 
+ logger = init_logger(__name__)
+@@ -459,6 +463,43 @@ class Batch(BaseEntity):
+         self.afd_stage_idx: Optional[int] = None
+         self.spec_decode_metadata: Optional[SpecDecodeBatchMetadata] = None
+         self._spec_terminal_completion_delay_s_by_request: Dict[int, float] = {}
++        self._hbfsim_memory_contract: Optional[dict] = None
++        self._hbfsim_kv_lifecycle_events: Optional[list[dict]] = None
++
++    @property
++    def hbfsim_memory_contract(self) -> Optional[dict]:
++        if self._hbfsim_memory_contract is None:
++            return None
++        return deepcopy(self._hbfsim_memory_contract)
++
++    @property
++    def hbfsim_kv_lifecycle_events(self) -> Optional[list[dict]]:
++        if self._hbfsim_kv_lifecycle_events is None:
++            return None
++        return deepcopy(self._hbfsim_kv_lifecycle_events)
++
++    def set_hbfsim_memory_evidence(
++        self,
++        contract: dict,
++        lifecycle_events: list[dict],
++    ) -> None:
++        if (
++            self._hbfsim_memory_contract is not None
++            or self._hbfsim_kv_lifecycle_events is not None
++        ):
++            raise ValueError(
++                f"HBFSim memory evidence is already set for batch {self._id}."
++            )
++        if (
++            int(contract.get("schema_version", 0))
++            != MEMORY_CONTRACT_SCHEMA_VERSION
++        ):
++            raise ValueError(
++                "Unsupported HBFSim memory contract schema: "
++                f"{contract.get('schema_version')!r}"
++            )
++        self._hbfsim_memory_contract = deepcopy(contract)
++        self._hbfsim_kv_lifecycle_events = deepcopy(lifecycle_events)
+ 
+     @staticmethod
+     def _get_request_execution_signature(request: Request) -> tuple[int, int, int]:
+diff --git a/frontier/entities/batch_stage.py b/frontier/entities/batch_stage.py
+index 4f4fc4a4971a90a789e51235773218a2c21e8c2a..35531deea7fc63fadd9b688cd61b4b66f2aac3d9 100644
+--- a/frontier/entities/batch_stage.py
++++ b/frontier/entities/batch_stage.py
+@@ -1,3 +1,4 @@
++from copy import deepcopy
+ from typing import List, Optional
+ 
+ from frontier.entities.base_entity import BaseEntity
+@@ -33,6 +34,8 @@ class BatchStage(BaseEntity):
+         effective_total_tokens_transfer: Optional[int] = None,
+         effective_total_tokens_rounded: Optional[int] = None,
+         tokens_are_post_routing: bool = False,
++        hbfsim_memory_contract: Optional[dict] = None,
++        hbfsim_kv_lifecycle_events: Optional[list[dict]] = None,
+     ) -> None:
+         self._id = BatchStage.generate_id()
+ 
+@@ -65,6 +68,16 @@ class BatchStage(BaseEntity):
+             else (self._effective_total_tokens_compute + 7) // 8 * 8
+         )
+         self._tokens_are_post_routing = bool(tokens_are_post_routing)
++        self._hbfsim_memory_contract = (
++            deepcopy(hbfsim_memory_contract)
++            if hbfsim_memory_contract is not None
++            else None
++        )
++        self._hbfsim_kv_lifecycle_events = (
++            deepcopy(hbfsim_kv_lifecycle_events)
++            if hbfsim_kv_lifecycle_events is not None
++            else None
++        )
+ 
+         self._scheduled_at = None
+         self._completed_at = None
+@@ -128,6 +141,18 @@ class BatchStage(BaseEntity):
+     def tokens_are_post_routing(self) -> bool:
+         return self._tokens_are_post_routing
+ 
++    @property
++    def hbfsim_memory_contract(self) -> Optional[dict]:
++        if self._hbfsim_memory_contract is None:
++            return None
++        return deepcopy(self._hbfsim_memory_contract)
++
++    @property
++    def hbfsim_kv_lifecycle_events(self) -> Optional[list[dict]]:
++        if self._hbfsim_kv_lifecycle_events is None:
++            return None
++        return deepcopy(self._hbfsim_kv_lifecycle_events)
++
+     def on_schedule(
+         self,
+         time: float,
+@@ -202,6 +227,7 @@ class BatchStage(BaseEntity):
+             "effective_total_tokens_transfer": self._effective_total_tokens_transfer,
+             "effective_total_tokens_rounded": self._effective_total_tokens_rounded,
+             "tokens_are_post_routing": self._tokens_are_post_routing,
++            "hbfsim_memory_contract": self.hbfsim_memory_contract,
+         }
+ 
+     def to_chrome_trace(self, time: int) -> dict:
+diff --git a/frontier/events/global_batch_end_event.py b/frontier/events/global_batch_end_event.py
+index 2b63c64e74c5b1af7f0796a8ec9c8a935e629e65..06244cb292f8159568d20783dcc5bf8cd0e6434a 100644
+--- a/frontier/events/global_batch_end_event.py
++++ b/frontier/events/global_batch_end_event.py
+@@ -175,7 +175,15 @@ class GlobalBatchEndEvent(BaseEvent):
+             request_mutation_signatures=self._request_mutation_signatures,
+             thinking_round_start_times=self._thinking_round_start_times,
+         )
++        replica_scheduler.set_memory_ledger_event_time(self.time)
+         replica_scheduler.on_batch_end(self._batch)  # decrement running batches
++        metrics_store.record_frontier_kv_lifecycle_events(
++            replica_scheduler.drain_hbfsim_kv_lifecycle_events(),
++            observed_after_batch_id=self._batch.id,
++            cluster_type=self._cluster_type,
++            replica_id=self._replica_id,
++            dp_id=self._dp_id,
++        )
+ 
+         thinking_requeue_events: List[BaseEvent] = []
+         for index, request in pre_batch_request_entries:
+diff --git a/frontier/kv_cache/base_kv_cache_manager.py b/frontier/kv_cache/base_kv_cache_manager.py
+index 906f5ec540e91022b984fa02378a510c6796181e..c849ffaf7eceeeac371c57bcf6a3fca52d2fb273 100644
+--- a/frontier/kv_cache/base_kv_cache_manager.py
++++ b/frontier/kv_cache/base_kv_cache_manager.py
+@@ -1,9 +1,10 @@
+ from __future__ import annotations
+ 
+ from collections import defaultdict
++from copy import deepcopy
+ from dataclasses import dataclass
+-from math import ceil
+-from typing import Optional
++from math import ceil, isfinite
++from typing import Any, Optional
+ 
+ from frontier.entities.request import Request
+ from frontier.kv_cache.kv_cache_block import KVCacheBlock
+@@ -26,6 +27,7 @@ class KVCacheManager:
+         enable_caching: bool,
+         caching_hash_algo: str,
+         num_preallocate_tokens: int,
++        lifecycle_stream_id: str = "kv-cache",
+     ) -> None:
+         self.block_size = int(block_size)
+         self.num_gpu_blocks = int(num_gpu_blocks)
+@@ -41,6 +43,12 @@ class KVCacheManager:
+         self.req_to_blocks: defaultdict[int, list[KVCacheBlock]] = defaultdict(list)
+         self.num_cached_blocks: dict[int, int] = {}
+         self.prefix_cache_stats = PrefixCacheStats()
++        self.lifecycle_stream_id = str(lifecycle_stream_id)
++        if not self.lifecycle_stream_id:
++            raise ValueError("lifecycle_stream_id must not be empty.")
++        self._next_lifecycle_event_index = 0
++        self._last_lifecycle_event_time = 0.0
++        self._pending_lifecycle_events: list[dict[str, Any]] = []
+ 
+     @property
+     def usage(self) -> float:
+@@ -58,10 +66,77 @@ class KVCacheManager:
+         self.prefix_cache_stats = PrefixCacheStats()
+         return stats
+ 
++    def _record_lifecycle_event(
++        self,
++        event: str,
++        *,
++        event_time: float,
++        request_id: Optional[int],
++        **payload: Any,
++    ) -> None:
++        event_time_value = float(event_time)
++        if not isfinite(event_time_value) or event_time_value < 0:
++            raise ValueError(
++                "KV lifecycle event time must be finite and >= 0, "
++                f"got {event_time_value}."
++            )
++        if event_time_value < self._last_lifecycle_event_time:
++            raise ValueError(
++                "KV lifecycle event time must be nondecreasing: "
++                f"previous={self._last_lifecycle_event_time}, "
++                f"current={event_time_value}."
++            )
++        self._last_lifecycle_event_time = event_time_value
++        event_index = self._next_lifecycle_event_index
++        self._next_lifecycle_event_index += 1
++        row = {
++            "schema_version": 1,
++            "stream_id": self.lifecycle_stream_id,
++            "event_index": event_index,
++            "event_id": f"{self.lifecycle_stream_id}:{event_index:012d}",
++            "event_time": event_time_value,
++            "event": str(event),
++            "request_id": None if request_id is None else str(request_id),
++        }
++        row.update(payload)
++        self._pending_lifecycle_events.append(row)
++
++    def drain_lifecycle_events(self) -> list[dict[str, Any]]:
++        events = deepcopy(self._pending_lifecycle_events)
++        self._pending_lifecycle_events.clear()
++        return events
++
++    def peek_lifecycle_events(self) -> list[dict[str, Any]]:
++        return deepcopy(self._pending_lifecycle_events)
++
++    @property
++    def next_lifecycle_event_index(self) -> int:
++        return int(self._next_lifecycle_event_index)
++
++    def get_request_block_snapshot(self, request: Request) -> list[dict[str, Any]]:
++        return [
++            {
++                "block_id": int(block.block_id),
++                "block_hash": block.block_hash,
++                "ref_count": int(block.ref_cnt),
++            }
++            for block in self.req_to_blocks.get(request.id, [])
++        ]
++
+     def _get_request_block_hashes(self, request: Request) -> list[int]:
+-        return list(request.block_hash_ids or [])
++        """Return only hashes that describe complete immutable prompt blocks.
++
++        Production traces may preserve an identity for the final partial
++        prompt block. That block can later contain generated tokens, so it is
++        neither a valid prefix-cache lookup key nor safe to cache-assign.
++        """
++        block_hashes = list(request.block_hash_ids or [])
++        num_full_prefix_blocks = int(request.num_prefill_tokens) // self.block_size
++        return block_hashes[:num_full_prefix_blocks]
+ 
+-    def get_computed_blocks(self, request: Request) -> tuple[list[KVCacheBlock], int]:
++    def get_computed_blocks(
++        self, request: Request, *, event_time: float = 0.0
++    ) -> tuple[list[KVCacheBlock], int]:
+         if not self.enable_caching:
+             return [], 0
+ 
+@@ -76,8 +151,45 @@ class KVCacheManager:
+         self.prefix_cache_stats.requests += 1
+         self.prefix_cache_stats.queries += len(block_hashes)
+         self.prefix_cache_stats.hits += len(computed_blocks)
++        self._record_lifecycle_event(
++            "prefix_lookup",
++            event_time=event_time,
++            request_id=request.id,
++            requested_block_hashes=block_hashes,
++            matched_blocks=[
++                {
++                    "block_id": int(block.block_id),
++                    "block_hash": block.block_hash,
++                    "ref_count": int(block.ref_cnt),
++                }
++                for block in computed_blocks
++            ],
++            hit_tokens=len(computed_blocks) * self.block_size,
++        )
+         return computed_blocks, len(computed_blocks) * self.block_size
+ 
++    def record_prefix_admission(
++        self,
++        request: Request,
++        computed_blocks: list[KVCacheBlock],
++        *,
++        event_time: float = 0.0,
++    ) -> None:
++        self._record_lifecycle_event(
++            "prefix_admission",
++            event_time=event_time,
++            request_id=request.id,
++            admitted_blocks=[
++                {
++                    "block_id": int(block.block_id),
++                    "block_hash": block.block_hash,
++                    "ref_count": int(block.ref_cnt),
++                }
++                for block in computed_blocks
++            ],
++            admitted_tokens=len(computed_blocks) * self.block_size,
++        )
++
+     def _get_num_new_blocks_required(
+         self,
+         request: Request,
+@@ -118,13 +230,30 @@ class KVCacheManager:
+         request: Request,
+         num_tokens: int,
+         new_computed_blocks: Optional[list[KVCacheBlock]] = None,
++        *,
++        event_time: float = 0.0,
+     ) -> Optional[list[KVCacheBlock]]:
+         computed_blocks = list(new_computed_blocks or [])
+         if not self.can_allocate_slots(request, num_tokens, computed_blocks):
+             return None
+ 
+         if self.enable_caching:
+-            self.block_pool.touch(computed_blocks)
++            touch_transitions = self.block_pool.touch(computed_blocks)
++            if touch_transitions:
++                self._record_lifecycle_event(
++                    "touch",
++                    event_time=event_time,
++                    request_id=request.id,
++                    blocks=[
++                        {
++                            "block_id": transition.block_id,
++                            "block_hash": transition.block_hash,
++                            "ref_count_before": transition.ref_count_before,
++                            "ref_count_after": transition.ref_count_after,
++                        }
++                        for transition in touch_transitions
++                    ],
++                )
+         elif computed_blocks:
+             raise ValueError(
+                 "Computed prefix blocks are not allowed when prefix caching is disabled."
+@@ -142,7 +271,25 @@ class KVCacheManager:
+                 num_new_blocks + self.num_preallocate_blocks,
+                 self.block_pool.get_num_free_blocks(),
+             )
+-            new_blocks = self.block_pool.get_new_blocks(num_new_blocks)
++            acquisitions = self.block_pool.get_new_blocks(num_new_blocks)
++            for acquisition in acquisitions:
++                if acquisition.evicted_hash is not None:
++                    self._record_lifecycle_event(
++                        "evict",
++                        event_time=event_time,
++                        request_id=request.id,
++                        block_id=int(acquisition.block.block_id),
++                        evicted_block_hash=acquisition.evicted_hash,
++                    )
++                self._record_lifecycle_event(
++                    "allocate",
++                    event_time=event_time,
++                    request_id=request.id,
++                    block_id=int(acquisition.block.block_id),
++                    ref_count_before=int(acquisition.ref_count_before),
++                    ref_count_after=int(acquisition.ref_count_after),
++                )
++            new_blocks = [acquisition.block for acquisition in acquisitions]
+             request_blocks.extend(new_blocks)
+         else:
+             new_blocks = []
+@@ -155,19 +302,42 @@ class KVCacheManager:
+         ) * self.block_size
+         num_full_blocks = (num_computed_tokens + num_tokens) // self.block_size
+         num_cached_blocks = self.num_cached_blocks.get(request.id, len(computed_blocks))
+-        self.block_pool.cache_full_blocks(
++        assignments = self.block_pool.cache_full_blocks(
+             blocks=request_blocks,
+             block_hashes=self._get_request_block_hashes(request),
+             num_cached_blocks=num_cached_blocks,
+             num_full_blocks=num_full_blocks,
+         )
++        for assignment in assignments:
++            self._record_lifecycle_event(
++                "cache_assign",
++                event_time=event_time,
++                request_id=request.id,
++                block_id=int(assignment.block_id),
++                block_hash=assignment.block_hash,
++            )
+         self.num_cached_blocks[request.id] = num_full_blocks
+         return new_blocks
+ 
+-    def free(self, request: Request) -> None:
++    def free(self, request: Request, *, event_time: float = 0.0) -> None:
+         request_blocks = self.req_to_blocks.pop(request.id, [])
+         if request_blocks:
+-            self.block_pool.free_blocks(reversed(request_blocks))
++            transitions = self.block_pool.free_blocks(reversed(request_blocks))
++            self._record_lifecycle_event(
++                "release",
++                event_time=event_time,
++                request_id=request.id,
++                blocks=[
++                    {
++                        "block_id": transition.block_id,
++                        "block_hash": transition.block_hash,
++                        "ref_count_before": transition.ref_count_before,
++                        "ref_count_after": transition.ref_count_after,
++                        "became_free": transition.ref_count_after == 0,
++                    }
++                    for transition in transitions
++                ],
++            )
+         self.num_cached_blocks.pop(request.id, None)
+ 
+     def free_block_hashes(self, request: Request) -> None:
+diff --git a/frontier/kv_cache/hbfsim_memory_contract.py b/frontier/kv_cache/hbfsim_memory_contract.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..e38cfb09fbcd4ad40519a4f497b07dae967a345f
+--- /dev/null
++++ b/frontier/kv_cache/hbfsim_memory_contract.py
+@@ -0,0 +1,50 @@
++"""Compact immutable contract between Frontier's KV allocator and HBFSim."""
++
++from __future__ import annotations
++
++import hashlib
++import json
++from typing import Any, Iterable, Mapping
++
++
++MEMORY_CONTRACT_SCHEMA_VERSION = 4
++ALLOCATOR_STATE_SCHEMA_VERSION = 1
++RESIDENCY_PLAN_SCHEMA_VERSION = 1
++INTEGRATION_ID = "hbfsim.frontier-hybrid-residency.v8"
++UPSTREAM_REVISION = "a4b22df8211864bf229258ecdfbe680f048f2d77"
++
++
++def canonical_allocator_state(
++    request_id: str,
++    blocks: Iterable[Mapping[str, Any]],
++) -> dict[str, Any]:
++    normalized_blocks = [
++        {
++            "block_id": int(block["block_id"]),
++            "block_hash": (
++                None
++                if block.get("block_hash") is None
++                else int(block["block_hash"])
++            ),
++            "ref_count": int(block["ref_count"]),
++        }
++        for block in blocks
++    ]
++    return {
++        "schema_version": ALLOCATOR_STATE_SCHEMA_VERSION,
++        "request_id": str(request_id),
++        "blocks": normalized_blocks,
++    }
++
++
++def allocator_state_sha256(
++    request_id: str,
++    blocks: Iterable[Mapping[str, Any]],
++) -> str:
++    encoded = json.dumps(
++        canonical_allocator_state(request_id, blocks),
++        sort_keys=True,
++        separators=(",", ":"),
++        allow_nan=False,
++    ).encode("utf-8")
++    return hashlib.sha256(encoded).hexdigest()
+diff --git a/frontier/kv_cache/kv_cache_block.py b/frontier/kv_cache/kv_cache_block.py
+index de93d63a8897a4fe04f92687f68727ba7f808ebf..96be85404ae6d539f3f7b129da4df19ae92d4c0b 100644
+--- a/frontier/kv_cache/kv_cache_block.py
++++ b/frontier/kv_cache/kv_cache_block.py
+@@ -16,6 +16,10 @@ class KVCacheBlock:
+         self.ref_cnt += 1
+ 
+     def decr_ref(self) -> None:
++        if self.ref_cnt <= 0:
++            raise ValueError(
++                f"Cannot decrement KV cache block {self.block_id} with ref_cnt={self.ref_cnt}."
++            )
+         self.ref_cnt -= 1
+ 
+     @property
+diff --git a/frontier/kv_cache/kv_cache_block_pool.py b/frontier/kv_cache/kv_cache_block_pool.py
+index 81882964fb0aaef2dee3fa831ef5016e7ee15afc..3d11307e3f4e09a11efab7e6cf287a4205c4cff7 100644
+--- a/frontier/kv_cache/kv_cache_block_pool.py
++++ b/frontier/kv_cache/kv_cache_block_pool.py
+@@ -2,12 +2,35 @@ from __future__ import annotations
+ 
+ from collections import defaultdict
+ from collections.abc import Iterable
++from dataclasses import dataclass
+ from typing import Hashable, Optional
+ 
+ from frontier.kv_cache.kv_cache_block import KVCacheBlock
+ from frontier.kv_cache.kv_cache_block_queue import FreeKVCacheBlockQueue
+ 
+ 
++@dataclass(frozen=True)
++class KVBlockAcquisition:
++    block: KVCacheBlock
++    evicted_hash: Optional[Hashable]
++    ref_count_before: int
++    ref_count_after: int
++
++
++@dataclass(frozen=True)
++class KVBlockRefTransition:
++    block_id: int
++    block_hash: Optional[Hashable]
++    ref_count_before: int
++    ref_count_after: int
++
++
++@dataclass(frozen=True)
++class KVBlockCacheAssignment:
++    block_id: int
++    block_hash: Hashable
++
++
+ class BlockPool:
+     def __init__(self, num_gpu_blocks: int, enable_caching: bool):
+         self.num_gpu_blocks = int(num_gpu_blocks)
+@@ -37,45 +60,101 @@ class BlockPool:
+             return 0.0
+         return self.get_num_used_blocks() / self.num_gpu_blocks
+ 
+-    def _maybe_evict_cached_block(self, block: KVCacheBlock) -> bool:
++    def _maybe_evict_cached_block(
++        self, block: KVCacheBlock
++    ) -> Optional[Hashable]:
+         block_hash = block.block_hash
+         if block_hash is None:
+-            return False
++            return None
+         cached_blocks = self.cached_block_hash_to_block.get(block_hash)
+         if not cached_blocks or block.block_id not in cached_blocks:
+-            return False
++            raise ValueError(
++                "KV cache block has a hash that is missing from the cache index: "
++                f"block_id={block.block_id}, block_hash={block_hash!r}"
++            )
+         del cached_blocks[block.block_id]
+         if not cached_blocks:
+             del self.cached_block_hash_to_block[block_hash]
+         block.reset_hash()
+         self.eviction_count += 1
+-        return True
++        return block_hash
+ 
+-    def get_new_blocks(self, num_blocks: int) -> list[KVCacheBlock]:
++    def get_new_blocks(self, num_blocks: int) -> list[KVBlockAcquisition]:
++        if num_blocks < 0:
++            raise ValueError(f"num_blocks must be >= 0, got {num_blocks}.")
+         if num_blocks > self.get_num_free_blocks():
+             raise ValueError(
+                 f"Cannot allocate {num_blocks} KV blocks from pool with {self.get_num_free_blocks()} free blocks."
+             )
+-        new_blocks: list[KVCacheBlock] = []
+-        while len(new_blocks) < num_blocks:
++        acquisitions: list[KVBlockAcquisition] = []
++        while len(acquisitions) < num_blocks:
+             block = self.free_block_queue.popleft()
++            if block.ref_cnt != 0:
++                raise ValueError(
++                    "Free KV cache queue returned a referenced block: "
++                    f"block_id={block.block_id}, ref_cnt={block.ref_cnt}"
++                )
++            evicted_hash = None
+             if self.enable_caching:
+-                self._maybe_evict_cached_block(block)
++                evicted_hash = self._maybe_evict_cached_block(block)
++            ref_count_before = block.ref_cnt
+             block.incr_ref()
+-            new_blocks.append(block)
+-        return new_blocks
++            acquisitions.append(
++                KVBlockAcquisition(
++                    block=block,
++                    evicted_hash=evicted_hash,
++                    ref_count_before=ref_count_before,
++                    ref_count_after=block.ref_cnt,
++                )
++            )
++        return acquisitions
+ 
+-    def touch(self, blocks: list[KVCacheBlock]) -> None:
++    def touch(self, blocks: list[KVCacheBlock]) -> list[KVBlockRefTransition]:
++        block_ids = [block.block_id for block in blocks]
++        if len(block_ids) != len(set(block_ids)):
++            raise ValueError(
++                f"Cannot touch duplicate KV cache blocks: block_ids={block_ids}"
++            )
++        transitions: list[KVBlockRefTransition] = []
+         for block in blocks:
++            ref_count_before = block.ref_cnt
+             if block.ref_cnt == 0:
+                 self.free_block_queue.remove(block)
+             block.incr_ref()
++            transitions.append(
++                KVBlockRefTransition(
++                    block_id=block.block_id,
++                    block_hash=block.block_hash,
++                    ref_count_before=ref_count_before,
++                    ref_count_after=block.ref_cnt,
++                )
++            )
++        return transitions
+ 
+-    def free_blocks(self, ordered_blocks: Iterable[KVCacheBlock]) -> None:
+-        for block in ordered_blocks:
++    def free_blocks(
++        self, ordered_blocks: Iterable[KVCacheBlock]
++    ) -> list[KVBlockRefTransition]:
++        blocks = list(ordered_blocks)
++        block_ids = [block.block_id for block in blocks]
++        if len(block_ids) != len(set(block_ids)):
++            raise ValueError(
++                f"Cannot free duplicate KV cache blocks: block_ids={block_ids}"
++            )
++        transitions: list[KVBlockRefTransition] = []
++        for block in blocks:
++            ref_count_before = block.ref_cnt
+             block.decr_ref()
+             if block.ref_cnt == 0:
+                 self.free_block_queue.append(block)
++            transitions.append(
++                KVBlockRefTransition(
++                    block_id=block.block_id,
++                    block_hash=block.block_hash,
++                    ref_count_before=ref_count_before,
++                    ref_count_after=block.ref_cnt,
++                )
++            )
++        return transitions
+ 
+     def cache_full_blocks(
+         self,
+@@ -84,12 +163,26 @@ class BlockPool:
+         block_hashes: list[Hashable],
+         num_cached_blocks: int,
+         num_full_blocks: int,
+-    ) -> None:
++    ) -> list[KVBlockCacheAssignment]:
+         if num_cached_blocks >= num_full_blocks:
+-            return
++            return []
++        assignments: list[KVBlockCacheAssignment] = []
+         upper_bound = min(num_full_blocks, len(block_hashes))
+         for block_index in range(num_cached_blocks, upper_bound):
+             block = blocks[block_index]
+             if block.block_hash is None:
+                 block.block_hash = block_hashes[block_index]
+                 self.cached_block_hash_to_block[block.block_hash][block.block_id] = block
++                assignments.append(
++                    KVBlockCacheAssignment(
++                        block_id=block.block_id,
++                        block_hash=block.block_hash,
++                    )
++                )
++            elif block.block_hash != block_hashes[block_index]:
++                raise ValueError(
++                    "KV cache block hash does not match the request prefix hash: "
++                    f"block_id={block.block_id}, assigned_hash={block.block_hash!r}, "
++                    f"request_hash={block_hashes[block_index]!r}"
++                )
++        return assignments
+diff --git a/frontier/metrics/metrics_store.py b/frontier/metrics/metrics_store.py
+index 7219f796e9f728a938698998771cf93d9bc910b7..ec280c7440c1403babbdd80117170032de2a9c9d 100644
+--- a/frontier/metrics/metrics_store.py
++++ b/frontier/metrics/metrics_store.py
+@@ -1,8 +1,18 @@
+ import json
++from math import isfinite
+ import os
++import tempfile
+ from functools import reduce
+ from typing import Dict, List, TYPE_CHECKING, Any, Optional
+ 
++from frontier.kv_cache.hbfsim_memory_contract import (
++    ALLOCATOR_STATE_SCHEMA_VERSION,
++    INTEGRATION_ID,
++    MEMORY_CONTRACT_SCHEMA_VERSION,
++    RESIDENCY_PLAN_SCHEMA_VERSION,
++    UPSTREAM_REVISION,
++)
++
+ import pandas as pd
+ import plotly.express as px
+ 
+@@ -80,6 +90,56 @@ def _round_ledger_ms(value: float) -> float:
+     return round(float(value), 9)
+ 
+ 
++def _atomic_write_jsonl(path: str, rows: list[dict[str, Any]]) -> None:
++    directory = os.path.dirname(path) or "."
++    os.makedirs(directory, exist_ok=True)
++    fd, temporary_path = tempfile.mkstemp(
++        prefix=f".{os.path.basename(path)}.",
++        suffix=".tmp",
++        dir=directory,
++        text=True,
++    )
++    try:
++        with os.fdopen(fd, "w", encoding="utf-8") as handle:
++            for row in rows:
++                handle.write(
++                    json.dumps(row, sort_keys=True, allow_nan=False) + "\n"
++                )
++            handle.flush()
++            os.fsync(handle.fileno())
++        os.replace(temporary_path, path)
++    except BaseException:
++        try:
++            os.unlink(temporary_path)
++        except FileNotFoundError:
++            pass
++        raise
++
++
++def _atomic_write_json(path: str, value: dict[str, Any]) -> None:
++    directory = os.path.dirname(path) or "."
++    os.makedirs(directory, exist_ok=True)
++    fd, temporary_path = tempfile.mkstemp(
++        prefix=f".{os.path.basename(path)}.",
++        suffix=".tmp",
++        dir=directory,
++        text=True,
++    )
++    try:
++        with os.fdopen(fd, "w", encoding="utf-8") as handle:
++            json.dump(value, handle, indent=2, sort_keys=True, allow_nan=False)
++            handle.write("\n")
++            handle.flush()
++            os.fsync(handle.fileno())
++        os.replace(temporary_path, path)
++    except BaseException:
++        try:
++            os.unlink(temporary_path)
++        except FileNotFoundError:
++            pass
++        raise
++
++
+ def _iter_mla_attention_op_times(execution_time: ExecutionTime):
+     return tuple(
+         (operator.name, duration_ms)
+@@ -299,6 +359,8 @@ class MetricsStore:
+             tuple[str, int, int, int, int], dict[str, Any]
+         ] = {}
+         self._frontier_stage_batch_ledger_rows: list[dict[str, Any]] = []
++        self._frontier_kv_block_lifecycle_events: list[dict[str, Any]] = []
++        self._frontier_kv_block_lifecycle_event_keys: set[tuple[str, int]] = set()
+         self._frontier_stage_batch_ledger_summary = (
+             self._new_frontier_stage_batch_ledger_summary()
+         )
+@@ -2283,30 +2345,34 @@ class MetricsStore:
+                     cluster_type=cluster_type,
+                 )
+ 
+-                # Calculate model parameters and memory
+-                num_params_per_device = param_counter.get_num_parameters_per_device()
+-                num_attention_params_per_layer = (
+-                    param_counter.get_num_attention_params_per_layer()
++                weight_memory_ledger = (
++                    param_counter.get_weight_memory_ledger_per_device()
+                 )
+-                num_mlp_params_per_layer = param_counter.get_num_mlp_params_per_layer()
+-                num_mlp_params_per_device = (
+-                    param_counter.get_num_mlp_parameters_per_device()
++                weight_streaming_ledger = None
++                scheduler_config = (
++                    cluster_config.replica_scheduler_config
+                 )
+-
+-                # Calculate memory in bytes (FP16: 2 bytes per parameter)
+-                model_weight_memory_bytes = 2 * num_params_per_device
+-                model_weight_memory_gb = model_weight_memory_bytes / (1024**3)
+-
+-                # Calculate memory breakdown
+-                attention_memory_bytes = (
+-                    2
+-                    * num_attention_params_per_layer
+-                    * (
+-                        cluster_config.replica_config.model_config.num_layers
+-                        // cluster_config.replica_config.num_pipeline_stages
++                if (
++                    cluster_type == ClusterType.MONOLITHIC
++                    and getattr(
++                        scheduler_config,
++                        "num_blocks_mode",
++                        None,
+                     )
++                    == "hybrid_residency"
++                ):
++                    weight_streaming_ledger = (
++                        param_counter
++                        .get_dense_weight_streaming_ledger_per_device()
++                    )
++                num_params_per_device = int(
++                    weight_memory_ledger["total_parameters"]
++                )
++                model_weight_memory_bytes = int(
++                    weight_memory_ledger["total_memory_bytes"]
+                 )
+-                mlp_memory_bytes = 2 * num_mlp_params_per_device
++                model_weight_memory_gb = model_weight_memory_bytes / (1024**3)
++                categories = weight_memory_ledger["categories"]
+ 
+                 # Calculate memory utilization percentage
+                 total_device_memory_gb = (
+@@ -2355,22 +2421,72 @@ class MetricsStore:
+                     "total_memory_bytes": int(model_weight_memory_bytes),
+                     "total_memory_gb": float(model_weight_memory_gb),
+                     "memory_utilization_percent": float(memory_utilization_percent),
++                    "memory_precision_profile": weight_memory_ledger[
++                        "profile"
++                    ],
++                    "storage_breakdown": {
++                        "matrix_payload_bytes": int(
++                            weight_memory_ledger["matrix_payload_bytes"]
++                        ),
++                        "non_matrix_payload_bytes": int(
++                            weight_memory_ledger[
++                                "non_matrix_payload_bytes"
++                            ]
++                        ),
++                        "quantization_metadata_bytes": int(
++                            weight_memory_ledger[
++                                "quantization_metadata_bytes"
++                            ]
++                        ),
++                    },
+                     "breakdown": {
+                         "attention_parameters": int(
+-                            num_attention_params_per_layer
+-                            * (
+-                                cluster_config.replica_config.model_config.num_layers
+-                                // cluster_config.replica_config.num_pipeline_stages
+-                            )
++                            categories["attention"]["parameters"]
++                        ),
++                        "attention_memory_bytes": int(
++                            categories["attention"]["memory_bytes"]
+                         ),
+-                        "attention_memory_bytes": int(attention_memory_bytes),
+                         "attention_memory_gb": float(
+-                            attention_memory_bytes / (1024**3)
++                            categories["attention"]["memory_bytes"]
++                            / (1024**3)
++                        ),
++                        "ffn_parameters": int(
++                            categories["ffn"]["parameters"]
++                        ),
++                        "ffn_memory_bytes": int(
++                            categories["ffn"]["memory_bytes"]
++                        ),
++                        "ffn_memory_gb": float(
++                            categories["ffn"]["memory_bytes"] / (1024**3)
++                        ),
++                        "normalization_parameters": int(
++                            categories["normalization"]["parameters"]
++                        ),
++                        "normalization_memory_bytes": int(
++                            categories["normalization"]["memory_bytes"]
++                        ),
++                        "normalization_memory_gb": float(
++                            categories["normalization"]["memory_bytes"]
++                            / (1024**3)
++                        ),
++                        "pipeline_boundary_and_auxiliary_parameters": int(
++                            categories[
++                                "pipeline_boundary_and_auxiliary"
++                            ]["parameters"]
++                        ),
++                        "pipeline_boundary_and_auxiliary_memory_bytes": int(
++                            categories[
++                                "pipeline_boundary_and_auxiliary"
++                            ]["memory_bytes"]
++                        ),
++                        "pipeline_boundary_and_auxiliary_memory_gb": float(
++                            categories[
++                                "pipeline_boundary_and_auxiliary"
++                            ]["memory_bytes"]
++                            / (1024**3)
+                         ),
+-                        "ffn_parameters": int(num_mlp_params_per_device),
+-                        "ffn_memory_bytes": int(mlp_memory_bytes),
+-                        "ffn_memory_gb": float(mlp_memory_bytes / (1024**3)),
+                     },
++                    "memory_ledger": weight_memory_ledger,
+                     "device_info": {
+                         "device_type": cluster_config.replica_config.device_config.get_type().name,
+                         "total_device_memory_gb": float(total_device_memory_gb),
+@@ -2383,6 +2499,10 @@ class MetricsStore:
+                         ),
+                     },
+                 }
++                if weight_streaming_ledger is not None:
++                    cluster_memory_info["weight_streaming_ledger"] = (
++                        weight_streaming_ledger
++                    )
+ 
+                 model_weight_memory[cluster_type.name] = cluster_memory_info
+ 
+@@ -2551,7 +2671,10 @@ class MetricsStore:
+         block_size = self._get_prefix_cache_block_size()
+         if block_size is None or block_size <= 0:
+             return
+-        query_blocks = len(request.block_hash_ids or [])
++        query_blocks = min(
++            len(request.block_hash_ids or []),
++            int(request.num_prefill_tokens) // block_size,
++        )
+         hit_blocks = int(request.num_prefill_tokens_cached // block_size)
+         self._request_metrics_histogram[
+             RequestMetricsHistogram.REQUEST_CACHED_PREFILL_TOKENS
+@@ -3664,6 +3787,22 @@ class MetricsStore:
+         cluster_type: ClusterType,
+         dp_id: int = 0,
+     ) -> None:
++        ledger_row = self._pending_frontier_stage_batch_ledger_rows.pop(id(batch_stage), None)
++        if ledger_row is not None:
++            self._pending_frontier_stage_batch_ledger_row_keys.pop(
++                ledger_key := self._frontier_stage_batch_ledger_key(
++                    batch_id=ledger_row["batch_id"],
++                    replica_id=ledger_row["replica_id"],
++                    stage_id=ledger_row["stage_id"],
++                    cluster_type=ledger_row["cluster_type"],
++                    dp_id=ledger_row["dp_id"],
++                ),
++                None,
++            )
++            self._pending_frontier_stage_batch_ledger_rows_by_key.pop(ledger_key, None)
++            ledger_row["stage_end_ts"] = time
++            self._complete_frontier_stage_batch_ledger_row(ledger_row)
++
+         if not self._config.store_utilization_metrics:
+             return
+         replica_index = self._get_cluster_replica_index(cluster_type, replica_id)
+@@ -3685,22 +3824,6 @@ class MetricsStore:
+         )
+         self._replica_mfu[cluster_type][replica_index][dp_id][stage_id].put(time, 0)
+ 
+-        ledger_row = self._pending_frontier_stage_batch_ledger_rows.pop(id(batch_stage), None)
+-        if ledger_row is not None:
+-            self._pending_frontier_stage_batch_ledger_row_keys.pop(
+-                ledger_key := self._frontier_stage_batch_ledger_key(
+-                    batch_id=ledger_row["batch_id"],
+-                    replica_id=ledger_row["replica_id"],
+-                    stage_id=ledger_row["stage_id"],
+-                    cluster_type=ledger_row["cluster_type"],
+-                    dp_id=ledger_row["dp_id"],
+-                ),
+-                None,
+-            )
+-            self._pending_frontier_stage_batch_ledger_rows_by_key.pop(ledger_key, None)
+-            ledger_row["stage_end_ts"] = time
+-            self._complete_frontier_stage_batch_ledger_row(ledger_row)
+-
+     def _build_frontier_stage_batch_component_ledger(
+         self,
+         execution_time: ExecutionTime,
+@@ -3979,6 +4102,12 @@ class MetricsStore:
+                 str(expert_id): int(token_count)
+                 for expert_id, token_count in batch_stage.per_expert_tokens.items()
+             }
++        memory_contract = getattr(batch_stage, "hbfsim_memory_contract", None)
++        if stage_id == 0 and memory_contract is not None:
++            row["hbfsim_memory_contract"] = memory_contract
++            row["_hbfsim_kv_lifecycle_events"] = (
++                batch_stage.hbfsim_kv_lifecycle_events or []
++            )
+         return row
+ 
+     def _build_frontier_stage_batch_ledger_capture_row(
+@@ -4059,11 +4188,95 @@ class MetricsStore:
+         )
+ 
+     def _complete_frontier_stage_batch_ledger_row(self, row: dict[str, Any]) -> None:
++        memory_contract = row.get("hbfsim_memory_contract")
++        if memory_contract is not None:
++            self.record_frontier_kv_lifecycle_events(
++                row.pop("_hbfsim_kv_lifecycle_events", []),
++                observed_after_batch_id=row["batch_id"],
++                cluster_type=row["cluster_type"],
++                replica_id=row["replica_id"],
++                dp_id=row["dp_id"],
++            )
+         if getattr(self._config, "store_frontier_stage_batch_ledger_summary", False):
+             self._update_frontier_stage_batch_ledger_summary(row)
+         if getattr(self._config, "store_frontier_stage_batch_ledger", True):
+             self._frontier_stage_batch_ledger_rows.append(row)
+ 
++    def record_frontier_kv_lifecycle_events(
++        self,
++        events: list[dict[str, Any]],
++        *,
++        observed_after_batch_id: int,
++        cluster_type: ClusterType | str,
++        replica_id: int,
++        dp_id: int,
++    ) -> None:
++        cluster_name = (
++            cluster_type.name
++            if isinstance(cluster_type, ClusterType)
++            else str(cluster_type)
++        )
++        supported_events = {
++            "prefix_lookup",
++            "prefix_admission",
++            "touch",
++            "evict",
++            "allocate",
++            "cache_assign",
++            "release",
++        }
++        for raw_event in events:
++            try:
++                event = json.loads(json.dumps(raw_event, allow_nan=False))
++            except (TypeError, ValueError) as error:
++                raise ValueError(
++                    "Frontier KV lifecycle event must be strict JSON: "
++                    f"{error}"
++                ) from error
++            if int(event.get("schema_version", 0)) != 1:
++                raise ValueError(
++                    "Unsupported Frontier KV lifecycle schema: "
++                    f"{event.get('schema_version')!r}"
++                )
++            stream_id = str(event.get("stream_id", ""))
++            if not stream_id:
++                raise ValueError("Frontier KV lifecycle event has no stream_id.")
++            event_index = int(event.get("event_index", -1))
++            if event_index < 0:
++                raise ValueError(
++                    "Frontier KV lifecycle event_index must be >= 0: "
++                    f"{event_index}"
++                )
++            expected_event_id = f"{stream_id}:{event_index:012d}"
++            if event.get("event_id") != expected_event_id:
++                raise ValueError(
++                    "Frontier KV lifecycle event_id is not canonical: "
++                    f"expected={expected_event_id!r}, actual={event.get('event_id')!r}"
++                )
++            event_type = str(event.get("event", ""))
++            if event_type not in supported_events:
++                raise ValueError(
++                    f"Unsupported Frontier KV lifecycle event type: {event_type!r}"
++                )
++            event_time = float(event.get("event_time", -1.0))
++            if not isfinite(event_time) or event_time < 0:
++                raise ValueError(
++                    "Frontier KV lifecycle event_time must be finite and >= 0: "
++                    f"{event.get('event_time')!r}"
++                )
++            event_key = (stream_id, event_index)
++            if event_key in self._frontier_kv_block_lifecycle_event_keys:
++                raise ValueError(
++                    "Duplicate Frontier KV lifecycle event: "
++                    f"stream_id={stream_id!r}, event_index={event_index}"
++                )
++            self._frontier_kv_block_lifecycle_event_keys.add(event_key)
++            event["observed_after_batch_id"] = int(observed_after_batch_id)
++            event["cluster_type"] = cluster_name
++            event["replica_id"] = int(replica_id)
++            event["dp_id"] = int(dp_id)
++            self._frontier_kv_block_lifecycle_events.append(event)
++
+     def _new_frontier_stage_batch_ledger_summary(self) -> dict[str, Any]:
+         return {
+             "schema_version": 1,
+@@ -4266,6 +4479,7 @@ class MetricsStore:
+         if (
+             not self._frontier_stage_batch_ledger_rows
+             and self._frontier_stage_batch_ledger_summary["total_rows"] == 0
++            and not self._frontier_kv_block_lifecycle_events
+         ):
+             return
+         os.makedirs(self._config.output_dir, exist_ok=True)
+@@ -4273,9 +4487,51 @@ class MetricsStore:
+             output_path = os.path.join(
+                 self._config.output_dir, "frontier_stage_batch_ledger.jsonl"
+             )
+-            with open(output_path, "w", encoding="utf-8") as handle:
+-                for row in self._frontier_stage_batch_ledger_rows:
+-                    handle.write(json.dumps(row, sort_keys=True) + "\n")
++            _atomic_write_jsonl(
++                output_path,
++                self._frontier_stage_batch_ledger_rows,
++            )
++        if self._frontier_kv_block_lifecycle_events:
++            lifecycle_output_path = os.path.join(
++                self._config.output_dir,
++                "frontier_kv_block_lifecycle.jsonl",
++            )
++            lifecycle_events = sorted(
++                self._frontier_kv_block_lifecycle_events,
++                key=lambda event: (
++                    float(event["event_time"]),
++                    str(event["stream_id"]),
++                    int(event["event_index"]),
++                ),
++            )
++            _atomic_write_jsonl(lifecycle_output_path, lifecycle_events)
++        integration_output_path = os.path.join(
++            self._config.output_dir,
++            "frontier_hbfsim_integration.json",
++        )
++        _atomic_write_json(
++            integration_output_path,
++            {
++                "schema": {
++                    "name": "hbfsim.frontier_integration_runtime",
++                    "version": 1,
++                },
++                "integration_id": INTEGRATION_ID,
++                "upstream_revision": UPSTREAM_REVISION,
++                "contracts": {
++                    "memory_contract_schema_version": (
++                        MEMORY_CONTRACT_SCHEMA_VERSION
++                    ),
++                    "allocator_state_schema_version": (
++                        ALLOCATOR_STATE_SCHEMA_VERSION
++                    ),
++                    "residency_plan_schema_version": (
++                        RESIDENCY_PLAN_SCHEMA_VERSION
++                    ),
++                    "kv_lifecycle_schema_version": 1,
++                },
++            },
++        )
+         if getattr(self._config, "store_frontier_stage_batch_ledger_summary", False):
+             summary_output_path = os.path.join(
+                 self._config.output_dir, "frontier_stage_batch_ledger_summary.json"
+diff --git a/frontier/profiling/common/model_config.py b/frontier/profiling/common/model_config.py
+index 5abc1c80fdf9de7b8c1fb8603c889e72f1132e6e..d75da374476e6d794fc873839376d6b256db44f0 100644
+--- a/frontier/profiling/common/model_config.py
++++ b/frontier/profiling/common/model_config.py
+@@ -12,6 +12,7 @@ from frontier.config.model_config import (
+     QuantizationConfig,
+     _infer_attn_output_gate_from_hf_config,
+     _infer_share_expert_dim_from_hf_config,
++    _infer_tie_word_embeddings_from_hf_config,
+     _infer_use_qk_norm_from_hf_config,
+ )
+ from frontier.model_architectures import get_model_architecture_profile
+@@ -305,6 +306,8 @@ class ModelConfig:
+             '_moe_layer_ids_cache',
+             'norm_expert_weight',  # Expert normalization field not used in profiling
+             'torch_dtype',
++            'source_config_path',
++            'source_config_sha256',
+         ]
+         for field in unsupported_fields:
+             model_config_dict.pop(field, None)
+@@ -385,8 +388,8 @@ class ModelConfig:
+             ):
+                 model_config_dict['use_mla'] = True
+             # Whether lm_head shares weights with embed_tokens (HF standard)
+-            model_config_dict['tie_word_embeddings'] = json_cfg.get(
+-                'tie_word_embeddings', True
++            model_config_dict['tie_word_embeddings'] = (
++                _infer_tie_word_embeddings_from_hf_config(json_cfg)
+             )
+             # Load quantization_config from JSON if not already loaded from BaseModelConfig
+             if quantization_config is None and 'quantization_config' in json_cfg:
+diff --git a/frontier/scheduler/replica_scheduler/base_replica_scheduler.py b/frontier/scheduler/replica_scheduler/base_replica_scheduler.py
+index c0c4085d6f9e901374904bdd89bf974dc1d9093e..8bad42d7c21014409b031a018672794f9ac550d3 100644
+--- a/frontier/scheduler/replica_scheduler/base_replica_scheduler.py
++++ b/frontier/scheduler/replica_scheduler/base_replica_scheduler.py
+@@ -60,12 +60,13 @@ class BaseReplicaScheduler(ABC):
+ 
+         num_blocks_mode = getattr(self._config, "num_blocks_mode", "memory_planner")
+         if num_blocks_mode not in {
++            "hybrid_residency",
+             "memory_planner",
+             "memory_planner_profiled",
+             "explicit",
+         }:
+             raise ValueError(
+-                "num_blocks_mode must be 'memory_planner', "
++                "num_blocks_mode must be 'hybrid_residency', 'memory_planner', "
+                 "'memory_planner_profiled', or 'explicit', "
+                 f"got={num_blocks_mode!r}"
+             )
+@@ -226,7 +227,28 @@ class BaseReplicaScheduler(ABC):
+             else 0
+         )
+ 
+-        if num_blocks_mode == "explicit":
++        self._hbfsim_hybrid_residency_plan = None
++        if num_blocks_mode == "hybrid_residency":
++            self._hbfsim_hybrid_residency_plan = (
++                memory_planner.get_hybrid_residency_plan(
++                    block_size=int(self._config.block_size),
++                    physical_hbm_capacity_bytes=int(
++                        self._config.hybrid_physical_hbm_capacity_bytes
++                    ),
++                    target_pressure=float(
++                        self._config.hybrid_capacity_pressure_target
++                    ),
++                    runtime_overhead_bytes=int(
++                        self._config.non_kv_cache_overhead_bytes
++                    ),
++                )
++            )
++            self._config.num_blocks = int(
++                self._hbfsim_hybrid_residency_plan[
++                    "num_logical_kv_blocks"
++                ]
++            )
++        elif num_blocks_mode == "explicit":
+             if int(self._config.num_blocks) <= 0:
+                 raise ValueError(
+                     "num_blocks must be > 0 when num_blocks_mode='explicit'"
+@@ -336,6 +358,11 @@ class BaseReplicaScheduler(ABC):
+             f"max_request_slots={int(max_request_slots) if max_request_slots is not None else 'n/a'}, "
+             f"max_batch_size={int(self._max_batch_size)}"
+         )
++        if self._hbfsim_hybrid_residency_plan is not None:
++            logger.info(
++                "[HBFSim_HYBRID_RESIDENCY] %s",
++                self._hbfsim_hybrid_residency_plan,
++            )
+         logger.debug(
+             f"Obtained max batch size of {self._max_batch_size} for replica {self._replica_id}"
+         )
+@@ -775,6 +802,14 @@ class BaseReplicaScheduler(ABC):
+             f"{self.__class__.__name__} does not support KV transfer completion."
+         )
+ 
++    def set_memory_ledger_event_time(self, time: float) -> None:
++        """Set the simulation timestamp used by optional memory-ledger hooks."""
++        self._current_schedule_time = float(time)
++
++    def drain_hbfsim_kv_lifecycle_events(self) -> list[dict[str, Any]]:
++        """Return pending physical KV lifecycle events, if this scheduler has any."""
++        return []
++
+     def should_schedule_after_kv_transfer_completion(self) -> bool:
+         return self.num_pending_requests > 0 and self.num_running_batches == 0
+ 
+diff --git a/frontier/scheduler/replica_scheduler/vllm_v1_engine_replica_scheduler.py b/frontier/scheduler/replica_scheduler/vllm_v1_engine_replica_scheduler.py
+index ac2e062c4af5325473181643b056b9031612fc89..9372523fd15260f96ec0457d5575e11d05452935 100644
+--- a/frontier/scheduler/replica_scheduler/vllm_v1_engine_replica_scheduler.py
++++ b/frontier/scheduler/replica_scheduler/vllm_v1_engine_replica_scheduler.py
+@@ -31,6 +31,11 @@ from frontier.entities.batch import (
+     Request,
+     SpecDecodeBatchMetadata,
+ )
++from frontier.kv_cache.hbfsim_memory_contract import (
++    ALLOCATOR_STATE_SCHEMA_VERSION,
++    MEMORY_CONTRACT_SCHEMA_VERSION,
++    allocator_state_sha256,
++)
+ from frontier.kv_cache.replica_kv_cache_manager import ReplicaKVCacheManager
+ from frontier.logger import get_cluster_logger
+ from frontier.scheduler.replica_scheduler.base_replica_scheduler import (
+@@ -48,6 +53,7 @@ from frontier.types import ClusterType
+ _FRONTIER_VLLM_V1_SCHED_DECISION_LOG_PATH = os.environ.get(
+     "FRONTIER_VLLM_V1_SCHED_DECISION_LOG_PATH", ""
+ )
++_NO_PREEMPTION_ADMISSION_POLICY = "full_request_kv_reservation_v1"
+ _frontier_vllm_v1_sched_decision_logger: Optional[logging.Logger] = None
+ 
+ if _FRONTIER_VLLM_V1_SCHED_DECISION_LOG_PATH:
+@@ -261,10 +267,20 @@ class VLLMv1EngineReplicaScheduler(BaseReplicaScheduler):
+                 num_preallocate_tokens=int(
+                     getattr(self._config, "num_preallocate_tokens", 0)
+                 ),
++                lifecycle_stream_id=(
++                    f"{self._cluster_type.name.lower()}:"
++                    f"replica-{self._replica_id}:dp-{self._dp_id}"
++                ),
+             )
+ 
+     def _create_batch(self, requests: List[Request], num_tokens: List[int]) -> Batch:
+         batch = super()._create_batch(requests, num_tokens)
++        if self._is_prefix_caching_enabled():
++            contract, lifecycle_events = self._build_hbfsim_memory_contract(batch)
++            batch.set_hbfsim_memory_evidence(
++                contract,
++                lifecycle_events,
++            )
+         metadata = self._build_decode_cuda_graph_metadata(batch)
+         if metadata is not None:
+             batch.decode_cuda_graph_metadata = metadata
+@@ -275,6 +291,156 @@ class VLLMv1EngineReplicaScheduler(BaseReplicaScheduler):
+         self._mark_batch_requests_active(batch)
+         return batch
+ 
++    def _build_hbfsim_memory_contract(
++        self, batch: Batch
++    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
++        if self._kv_cache_manager is None:
++            raise ValueError(
++                "Cannot build an HBFSim memory contract without a KV cache manager."
++            )
++        residency_plan = getattr(
++            self,
++            "_hbfsim_hybrid_residency_plan",
++            None,
++        )
++        if residency_plan is None:
++            raise ValueError(
++                "HBFSim memory evidence requires num_blocks_mode="
++                "hybrid_residency"
++            )
++
++        request_snapshots: list[dict[str, Any]] = []
++        for request, scheduled_tokens in zip(batch.requests, batch.num_tokens):
++            scheduled_tokens_value = int(scheduled_tokens)
++            if scheduled_tokens_value <= 0:
++                raise ValueError(
++                    "HBFSim memory contract requires positive scheduled tokens: "
++                    f"batch_id={batch.id}, request_id={request.id}, "
++                    f"scheduled_tokens={scheduled_tokens_value}"
++                )
++            context_tokens_before = int(request.num_processed_tokens)
++            scheduler_token_frontier_after = (
++                context_tokens_before + scheduled_tokens_value
++            )
++            phase = "decode" if request.is_prefill_complete else "prefill"
++            kv_tokens_before = (
++                context_tokens_before - 1
++                if phase == "decode"
++                else context_tokens_before
++            )
++            if kv_tokens_before < 0:
++                raise ValueError(
++                    "Decode KV frontier cannot precede token zero: "
++                    f"batch_id={batch.id}, request_id={request.id}, "
++                    f"context_tokens_before={context_tokens_before}"
++                )
++            kv_tokens_after = kv_tokens_before + scheduled_tokens_value
++            produces_output_token = (
++                phase == "decode"
++                or (
++                    int(request.num_decode_tokens) > 0
++                    and scheduler_token_frontier_after
++                    == int(request.num_prefill_tokens)
++                )
++            )
++            allocator_required_blocks = ceil(
++                scheduler_token_frontier_after
++                / self._kv_cache_manager.block_size
++            )
++            blocks = self._kv_cache_manager.get_request_block_snapshot(request)
++            block_ids = [int(block["block_id"]) for block in blocks]
++            if len(block_ids) != len(set(block_ids)):
++                raise ValueError(
++                    "HBFSim memory contract contains duplicate physical KV blocks: "
++                    f"batch_id={batch.id}, request_id={request.id}, "
++                    f"block_ids={block_ids}"
++                )
++            if len(blocks) < allocator_required_blocks:
++                raise ValueError(
++                    "HBFSim memory contract KV capacity is smaller than the "
++                    "scheduled token frontier: "
++                    f"batch_id={batch.id}, request_id={request.id}, "
++                    f"context_tokens_before={context_tokens_before}, "
++                    f"scheduled_tokens={scheduled_tokens_value}, "
++                    f"required_blocks={allocator_required_blocks}, "
++                    f"allocated_blocks={len(blocks)}"
++                )
++            request_snapshots.append(
++                {
++                    "request_id": str(request.id),
++                    "runtime_epoch": int(request.runtime_epoch),
++                    "phase": phase,
++                    "context_tokens_before": context_tokens_before,
++                    "scheduled_tokens": scheduled_tokens_value,
++                    "scheduler_token_frontier_after": (
++                        scheduler_token_frontier_after
++                    ),
++                    "kv_tokens_before": kv_tokens_before,
++                    "kv_tokens_after": kv_tokens_after,
++                    "produces_output_token": produces_output_token,
++                    "num_prefill_tokens": int(request.num_prefill_tokens),
++                    "num_decode_tokens": int(request.num_decode_tokens),
++                    "cached_prefill_tokens": int(
++                        request.num_prefill_tokens_cached
++                    ),
++                    "allocator_required_blocks": allocator_required_blocks,
++                    "allocated_block_count": len(blocks),
++                    "allocator_state_sha256": allocator_state_sha256(
++                        str(request.id),
++                        blocks,
++                    ),
++                }
++            )
++
++        lifecycle_events = self._kv_cache_manager.drain_lifecycle_events()
++        contract = {
++            "schema_version": MEMORY_CONTRACT_SCHEMA_VERSION,
++            "contract": "frontier-hbfsim-memory-object",
++            "captured_at": float(self._current_schedule_time),
++            "batch_id": int(batch.id),
++            "schedule_iteration_id": int(self._active_schedule_iteration_id),
++            "cluster_type": self._cluster_type.name,
++            "replica_id": int(self._replica_id),
++            "dp_id": int(self._dp_id),
++            "kv_cache": {
++                "block_size_tokens": int(self._kv_cache_manager.block_size),
++                "num_gpu_blocks": int(self._kv_cache_manager.num_gpu_blocks),
++                "enable_prefix_caching": bool(
++                    self._kv_cache_manager.enable_caching
++                ),
++                "caching_hash_algo": self._kv_cache_manager.caching_hash_algo,
++                "num_preallocate_tokens": int(
++                    self._kv_cache_manager.num_preallocate_tokens
++                ),
++                "lifecycle_stream_id": (
++                    self._kv_cache_manager.lifecycle_stream_id
++                ),
++                "no_preemption_admission_policy": (
++                    _NO_PREEMPTION_ADMISSION_POLICY
++                    if not self._enable_preemption
++                    else None
++                ),
++            },
++            "residency_plan": dict(residency_plan),
++            "allocator_state": {
++                "schema_version": ALLOCATOR_STATE_SCHEMA_VERSION,
++                "digest": "sha256",
++                "canonical_json": "sorted-keys-compact",
++                "block_order": "request-ownership-order",
++            },
++            "requests": request_snapshots,
++            "lifecycle_event_cursor": int(
++                self._kv_cache_manager.next_lifecycle_event_index
++            ),
++        }
++        return contract, lifecycle_events
++
++    def drain_hbfsim_kv_lifecycle_events(self) -> list[dict[str, Any]]:
++        kv_cache_manager = getattr(self, "_kv_cache_manager", None)
++        if kv_cache_manager is None:
++            return []
++        return kv_cache_manager.drain_lifecycle_events()
++
+     def _refresh_target_embedded_mtp_prefill_boundary_state(
+         self, batch: Batch, request: Request
+     ) -> None:
+@@ -1162,7 +1328,10 @@ class VLLMv1EngineReplicaScheduler(BaseReplicaScheduler):
+         )
+         if self._is_prefix_caching_enabled():
+             assert self._kv_cache_manager is not None
+-            self._kv_cache_manager.free(request)
++            self._kv_cache_manager.free(
++                request,
++                event_time=self._current_schedule_time,
++            )
+             self._allocation_map.pop(request.id, None)
+             self._sync_prefix_cache_allocation_state()
+             return
+@@ -1186,14 +1355,35 @@ class VLLMv1EngineReplicaScheduler(BaseReplicaScheduler):
+             )
+         assert self._kv_cache_manager is not None
+         computed_blocks, num_computed_tokens = self._kv_cache_manager.get_computed_blocks(
+-            request
+-        )
++            request,
++            event_time=self._current_schedule_time,
++        )
++        if int(num_computed_tokens) > int(request.num_prefill_tokens):
++            raise RuntimeError(
++                "Prefix-cache lookup exceeded the request prefill frontier: "
++                f"request_id={request.id}, "
++                f"cached_tokens={num_computed_tokens}, "
++                f"prefill_tokens={request.num_prefill_tokens}"
++            )
+         num_new_tokens = int(request.num_prefill_tokens) - int(num_computed_tokens)
+         if num_new_tokens == 0 and computed_blocks:
+             num_computed_tokens -= int(self._config.block_size)
+             num_new_tokens = int(self._config.block_size)
+             computed_blocks = list(computed_blocks[:-1])
+             self._kv_cache_manager.prefix_cache_stats.hits -= 1
++        if num_new_tokens <= 0:
++            raise RuntimeError(
++                "Prefix-cache admission produced no schedulable prefill tokens: "
++                f"request_id={request.id}, "
++                f"cached_tokens={num_computed_tokens}, "
++                f"prefill_tokens={request.num_prefill_tokens}, "
++                f"new_tokens={num_new_tokens}"
++            )
++        self._kv_cache_manager.record_prefix_admission(
++            request,
++            computed_blocks,
++            event_time=self._current_schedule_time,
++        )
+         return computed_blocks, int(num_computed_tokens), int(num_new_tokens)
+ 
+     def _build_decode_cuda_graph_metadata(
+@@ -1751,7 +1941,8 @@ class VLLMv1EngineReplicaScheduler(BaseReplicaScheduler):
+             "simulation_time": float(self._current_schedule_time),
+             "simulation_time_semantics": "frontier_event_time_seconds",
+         }
+-        if self._kv_cache_manager is not None:
++        if self._is_prefix_caching_enabled():
++            assert self._kv_cache_manager is not None
+             prefix_cache_stats = self._kv_cache_manager.prefix_cache_stats
+             payload.update(
+                 {
+@@ -2439,6 +2630,7 @@ class VLLMv1EngineReplicaScheduler(BaseReplicaScheduler):
+                 request,
+                 num_new_tokens,
+                 new_computed_blocks=new_computed_blocks,
++                event_time=self._current_schedule_time,
+             )
+             if allocated_blocks is None:
+                 raise ValueError(
+@@ -2952,6 +3144,44 @@ class VLLMv1EngineReplicaScheduler(BaseReplicaScheduler):
+ 
+     # ========== Phase 2: WAITING Requests Scheduling ==========
+ 
++    def _get_full_request_kv_reservation_blocks(
++        self,
++        request: Request,
++    ) -> int:
++        """Return a conservative no-preemption KV reservation.
++
++        The final generated token is not consumed as input, so the maximum
++        resident KV frontier is ``total_tokens - 1``. Prefix sharing can reduce
++        physical occupancy, but admission deliberately does not depend on a
++        future cache hit.
++        """
++        final_kv_tokens = max(int(request.total_tokens) - 1, 0)
++        return ceil(final_kv_tokens / int(self._config.block_size))
++
++    def _get_no_preemption_reserved_blocks(self) -> int:
++        return sum(
++            self._get_full_request_kv_reservation_blocks(request)
++            for request in self._running_requests
++        )
++
++    def _can_admit_without_preemption(self, request: Request) -> bool:
++        if self._enable_preemption:
++            return True
++        request_blocks = self._get_full_request_kv_reservation_blocks(request)
++        capacity_blocks = int(self._config.num_blocks)
++        if request_blocks > capacity_blocks:
++            raise ValueError(
++                "Request maximum KV footprint exceeds the no-preemption "
++                "block capacity: "
++                f"request_id={request.id}, required_blocks={request_blocks}, "
++                f"capacity_blocks={capacity_blocks}, "
++                f"policy={_NO_PREEMPTION_ADMISSION_POLICY}"
++            )
++        return (
++            self._get_no_preemption_reserved_blocks() + request_blocks
++            <= capacity_blocks
++        )
++
+     def _get_sorted_waiting_queue(self) -> List[Request]:
+         """
+         Get waiting requests sorted by scheduling policy.
+@@ -3059,6 +3289,17 @@ class VLLMv1EngineReplicaScheduler(BaseReplicaScheduler):
+                     request.id,
+                 )
+                 break
++            if not self._can_admit_without_preemption(request):
++                logger.info(
++                    "[ADMISSION_DEFERRED] req=%s policy=%s "
++                    "reserved_blocks=%s request_blocks=%s capacity_blocks=%s",
++                    request.id,
++                    _NO_PREEMPTION_ADMISSION_POLICY,
++                    self._get_no_preemption_reserved_blocks(),
++                    self._get_full_request_kv_reservation_blocks(request),
++                    int(self._config.num_blocks),
++                )
++                break
+ 
+             is_final_prefill_request = fast_lane_prefill_enabled and (
+                 self._is_final_prefill_fast_lane_request(request)
+@@ -3138,8 +3379,16 @@ class VLLMv1EngineReplicaScheduler(BaseReplicaScheduler):
+             num_new_tokens = min(num_new_tokens, effective_token_budget)
+ 
+             if num_new_tokens <= 0:
+-                waiting_queue.popleft()
+-                continue
++                raise RuntimeError(
++                    "Waiting request admission produced no schedulable tokens; "
++                    "refusing to discard an incomplete request: "
++                    f"request_id={request.id}, "
++                    f"prefill_tokens={request.num_prefill_tokens}, "
++                    f"scheduler_computed_tokens="
++                    f"{self._get_scheduler_num_computed_tokens(request)}, "
++                    f"max_model_len={self._max_model_len}, "
++                    f"effective_token_budget={effective_token_budget}"
++                )
+ 
+             # Try to allocate (no preemption for waiting requests in Phase 2)
+             if not self._can_allocate_request(
+diff --git a/frontier/scheduler/replica_stage_scheduler/replica_stage_schduler.py b/frontier/scheduler/replica_stage_scheduler/replica_stage_schduler.py
+index 2344fe35ff55fe49b282beaeb33858f676d284f7..0ef9396c2b091062d841ea567e17966aeae331e3 100644
+--- a/frontier/scheduler/replica_stage_scheduler/replica_stage_schduler.py
++++ b/frontier/scheduler/replica_stage_scheduler/replica_stage_schduler.py
+@@ -178,6 +178,27 @@ class ReplicaStageScheduler:
+         live_batch._thinking_round_start_times = [
+             batch.thinking_round_start_times[index] for index in live_indices
+         ]
++        memory_contract = batch.hbfsim_memory_contract
++        if memory_contract is not None:
++            live_request_ids = {str(request.id) for request in live_requests}
++            memory_contract["requests"] = [
++                request_snapshot
++                for request_snapshot in memory_contract["requests"]
++                if request_snapshot["request_id"] in live_request_ids
++            ]
++            memory_contract["runtime_live_filter"] = {
++                "applied": True,
++                "original_request_ids": [
++                    str(request.id) for request in batch.requests
++                ],
++                "live_request_ids": [
++                    str(request.id) for request in live_requests
++                ],
++            }
++            live_batch.set_hbfsim_memory_evidence(
++                memory_contract,
++                batch.hbfsim_kv_lifecycle_events or [],
++            )
+         return live_batch
+ 
+     def pop_batch_if_not_busy(self) -> Batch:
+@@ -293,6 +314,8 @@ class ReplicaStageScheduler:
+                 effective_total_tokens_transfer=effective_tokens_transfer,
+                 effective_total_tokens_rounded=effective_tokens_rounded,
+                 tokens_are_post_routing=tokens_are_post_routing,
++                hbfsim_memory_contract=batch.hbfsim_memory_contract,
++                hbfsim_kv_lifecycle_events=batch.hbfsim_kv_lifecycle_events,
+             )
+             self._copy_ep_batch_metadata_to_stage(batch, batch_stage)
+             return batch_stage, None
+@@ -312,6 +335,8 @@ class ReplicaStageScheduler:
+             effective_total_tokens_transfer=effective_tokens_transfer,
+             effective_total_tokens_rounded=effective_tokens_rounded,
+             tokens_are_post_routing=tokens_are_post_routing,
++            hbfsim_memory_contract=batch.hbfsim_memory_contract,
++            hbfsim_kv_lifecycle_events=batch.hbfsim_kv_lifecycle_events,
+         )
+         self._copy_ep_batch_metadata_to_stage(batch, batch_stage)
+ 
+diff --git a/frontier/scheduler/utils/memory_planner.py b/frontier/scheduler/utils/memory_planner.py
+index c3bcaaae7d46ae5a3a7e56f5ef3e9c683049a29a..13da6cc75f58ab01328c4e86d1b5be9c24509184 100644
+--- a/frontier/scheduler/utils/memory_planner.py
++++ b/frontier/scheduler/utils/memory_planner.py
+@@ -11,6 +11,16 @@ from frontier.utils.param_counter import ParamCounter
+ 
+ 
+ class MemoryPlanner:
++    _HYBRID_PRESSURE_FRACTIONS = {
++        0.75: ("0.75", 3, 4),
++        1.0: ("1.0", 1, 1),
++        1.25: ("1.25", 5, 4),
++        1.5: ("1.5", 3, 2),
++        2.0: ("2.0", 2, 1),
++    }
++    _HYBRID_ACTIVE_WEIGHT_BUFFER_COUNT = 2
++    _HYBRID_BLOCK_TABLE_ENTRY_BYTES = 4
++
+     def __init__(
+         self,
+         replica_config: ReplicaConfig,
+@@ -85,7 +95,7 @@ class MemoryPlanner:
+             return 0
+ 
+         return (
+-            2  # 2 bytes per fp16/bf16 element
++            self._param_counter.get_memory_precision_profile().kv_bytes
+             * self._get_kv_cache_elements_per_token_per_worker()
+             * self._replica.max_request_tokens
+         )
+@@ -110,18 +120,250 @@ class MemoryPlanner:
+             return 0
+ 
+         return (
+-            2  # 2 bytes per fp16/bf16 element
++            self._param_counter.get_memory_precision_profile().kv_bytes
+             * block_size
+             * self._get_kv_cache_elements_per_token_per_worker()
+         )
+ 
+     def _get_parameter_memory_per_device(self) -> int:
+-        return 2 * self._param_counter.get_num_parameters_per_device()
++        return int(
++            self._param_counter.get_weight_memory_ledger_per_device()[
++                "total_memory_bytes"
++            ]
++        )
+ 
+     def get_parameter_memory_per_device_bytes(self) -> int:
+         """Return parameter memory per device in bytes."""
+         return self._get_parameter_memory_per_device()
+ 
++    @classmethod
++    def _hybrid_pressure_fraction(
++        cls,
++        target_pressure: float,
++    ) -> tuple[str, int, int]:
++        normalized = float(target_pressure)
++        if normalized not in cls._HYBRID_PRESSURE_FRACTIONS:
++            raise ValueError(
++                "hybrid_capacity_pressure_target must be one of "
++                f"{sorted(cls._HYBRID_PRESSURE_FRACTIONS)}, "
++                f"got={target_pressure!r}"
++            )
++        return cls._HYBRID_PRESSURE_FRACTIONS[normalized]
++
++    def get_hybrid_residency_plan(
++        self,
++        *,
++        block_size: int,
++        physical_hbm_capacity_bytes: int,
++        target_pressure: float,
++        runtime_overhead_bytes: int,
++    ) -> dict[str, object]:
++        """Build the one HBFSim hybrid-residency capacity contract.
++
++        The target controls a logical, unique footprint independent of HBM
++        placement.  Immutable weights and cold KV use backing; HBM contains
++        two active-weight buffers, runtime overhead, the complete block table,
++        and as many whole hot-KV blocks as fit.
++        """
++        block_size_value = int(block_size)
++        if block_size_value <= 0:
++            raise ValueError(
++                f"block_size must be > 0, got={block_size!r}"
++            )
++        capacity_bytes = int(physical_hbm_capacity_bytes)
++        if capacity_bytes <= 0:
++            raise ValueError(
++                "hybrid_physical_hbm_capacity_bytes must be > 0, "
++                f"got={physical_hbm_capacity_bytes!r}"
++            )
++        overhead_bytes = self._validate_non_kv_cache_overhead_bytes(
++            runtime_overhead_bytes
++        )
++        if overhead_bytes == 0:
++            raise ValueError(
++                "hybrid residency requires an explicit positive "
++                "non_kv_cache_overhead_bytes sensitivity"
++            )
++        pressure_text, pressure_numerator, pressure_denominator = (
++            self._hybrid_pressure_fraction(target_pressure)
++        )
++        target_footprint_bytes = (
++            capacity_bytes * pressure_numerator // pressure_denominator
++        )
++
++        page_size_per_layer = (
++            self._get_kv_cache_memory_per_layer_per_block(block_size_value)
++        )
++        if page_size_per_layer <= 0:
++            self._raise_memory_oom(
++                reason="hybrid_residency_requires_kv_cache",
++                message=(
++                    "Hybrid residency requires a positive KV block layout."
++                ),
++                details={
++                    "block_size": block_size_value,
++                    "physical_hbm_capacity_bytes": capacity_bytes,
++                    "target_pressure": pressure_text,
++                },
++            )
++        num_layers = int(self._replica.num_layers)
++        kv_block_stride_bytes = page_size_per_layer * num_layers
++        if kv_block_stride_bytes <= 0:
++            raise ValueError("hybrid KV block stride must be positive")
++
++        streaming_ledger = (
++            self._param_counter.get_dense_weight_streaming_ledger_per_device()
++        )
++        immutable_weight_bytes = int(
++            streaming_ledger["immutable_weight_backing_bytes"]
++        )
++        active_buffer_bytes_per_slot = int(
++            streaming_ledger["active_buffer_bytes_per_slot"]
++        )
++        active_buffer_count = self._HYBRID_ACTIVE_WEIGHT_BUFFER_COUNT
++        active_buffer_bytes = (
++            active_buffer_count * active_buffer_bytes_per_slot
++        )
++        bytes_per_logical_kv_block = (
++            kv_block_stride_bytes
++            + self._HYBRID_BLOCK_TABLE_ENTRY_BYTES
++        )
++        non_kv_unique_bytes = immutable_weight_bytes + overhead_bytes
++        logical_kv_budget_bytes = (
++            target_footprint_bytes - non_kv_unique_bytes
++        )
++        if logical_kv_budget_bytes < bytes_per_logical_kv_block:
++            self._raise_memory_oom(
++                reason="target_footprint_below_immutable_state",
++                message=(
++                    "The requested capacity-pressure point cannot contain "
++                    "immutable weights, runtime overhead, and one KV block."
++                ),
++                details={
++                    "physical_hbm_capacity_bytes": capacity_bytes,
++                    "target_pressure": pressure_text,
++                    "target_footprint_bytes": target_footprint_bytes,
++                    "immutable_weight_backing_bytes": immutable_weight_bytes,
++                    "runtime_overhead_bytes": overhead_bytes,
++                    "minimum_kv_block_and_metadata_bytes": (
++                        bytes_per_logical_kv_block
++                    ),
++                },
++            )
++        num_logical_kv_blocks = (
++            logical_kv_budget_bytes // bytes_per_logical_kv_block
++        )
++        block_table_bytes = (
++            num_logical_kv_blocks
++            * self._HYBRID_BLOCK_TABLE_ENTRY_BYTES
++        )
++        logical_kv_bytes = (
++            num_logical_kv_blocks * kv_block_stride_bytes
++        )
++        unique_footprint_bytes = (
++            immutable_weight_bytes
++            + overhead_bytes
++            + block_table_bytes
++            + logical_kv_bytes
++        )
++        target_rounding_slack_bytes = (
++            target_footprint_bytes - unique_footprint_bytes
++        )
++        if (
++            target_rounding_slack_bytes < 0
++            or target_rounding_slack_bytes >= bytes_per_logical_kv_block
++        ):
++            raise ValueError(
++                "hybrid unique-footprint floor division is inconsistent"
++            )
++
++        fixed_hbm_bytes = (
++            overhead_bytes + block_table_bytes + active_buffer_bytes
++        )
++        if fixed_hbm_bytes >= capacity_bytes:
++            self._raise_memory_oom(
++                reason="hybrid_fixed_hbm_state_exceeds_capacity",
++                message=(
++                    "Runtime overhead, block table, and active weight buffers "
++                    "leave no HBM space for one hot KV block."
++                ),
++                details={
++                    "physical_hbm_capacity_bytes": capacity_bytes,
++                    "runtime_overhead_bytes": overhead_bytes,
++                    "block_table_bytes": block_table_bytes,
++                    "active_weight_buffer_bytes": active_buffer_bytes,
++                    "kv_block_stride_bytes": kv_block_stride_bytes,
++                },
++            )
++        hot_kv_blocks = min(
++            num_logical_kv_blocks,
++            (capacity_bytes - fixed_hbm_bytes) // kv_block_stride_bytes,
++        )
++        if hot_kv_blocks <= 0:
++            self._raise_memory_oom(
++                reason="hybrid_fixed_hbm_state_exceeds_capacity",
++                message=(
++                    "Hybrid residency cannot place one complete hot KV block "
++                    "after fixed HBM allocations."
++                ),
++                details={
++                    "physical_hbm_capacity_bytes": capacity_bytes,
++                    "fixed_hbm_bytes": fixed_hbm_bytes,
++                    "kv_block_stride_bytes": kv_block_stride_bytes,
++                },
++            )
++        hot_kv_bytes = hot_kv_blocks * kv_block_stride_bytes
++        cold_kv_blocks = num_logical_kv_blocks - hot_kv_blocks
++        cold_kv_bytes = cold_kv_blocks * kv_block_stride_bytes
++        unused_hbm_bytes = (
++            capacity_bytes - fixed_hbm_bytes - hot_kv_bytes
++        )
++        backing_bytes = immutable_weight_bytes + cold_kv_bytes
++
++        return {
++            "schema_version": 1,
++            "policy": "hybrid_residency_v1",
++            "pressure_basis": (
++                "unique_resident_footprint_bytes/"
++                "physical_hbm_capacity_bytes"
++            ),
++            "target_pressure": pressure_text,
++            "target_pressure_numerator": pressure_numerator,
++            "target_pressure_denominator": pressure_denominator,
++            "physical_hbm_capacity_bytes": capacity_bytes,
++            "target_footprint_bytes": target_footprint_bytes,
++            "unique_resident_footprint_bytes": unique_footprint_bytes,
++            "target_rounding_slack_bytes": target_rounding_slack_bytes,
++            "immutable_weight_backing_bytes": immutable_weight_bytes,
++            "runtime_overhead_bytes": overhead_bytes,
++            "runtime_overhead_source": "configured_unprofiled_sensitivity",
++            "hardware_capacity_calibrated": False,
++            "active_weight_buffer_count": active_buffer_count,
++            "active_weight_buffer_bytes_per_slot": (
++                active_buffer_bytes_per_slot
++            ),
++            "active_weight_buffer_bytes": active_buffer_bytes,
++            "block_table_entry_bytes": (
++                self._HYBRID_BLOCK_TABLE_ENTRY_BYTES
++            ),
++            "block_table_bytes": block_table_bytes,
++            "kv_block_size_tokens": block_size_value,
++            "kv_page_bytes_per_layer": page_size_per_layer,
++            "num_layers": num_layers,
++            "kv_block_stride_bytes": kv_block_stride_bytes,
++            "num_logical_kv_blocks": num_logical_kv_blocks,
++            "logical_kv_bytes": logical_kv_bytes,
++            "hot_kv_blocks": hot_kv_blocks,
++            "hot_kv_bytes": hot_kv_bytes,
++            "cold_kv_blocks": cold_kv_blocks,
++            "cold_kv_bytes": cold_kv_bytes,
++            "fixed_hbm_bytes": fixed_hbm_bytes,
++            "unused_hbm_bytes": unused_hbm_bytes,
++            "backing_bytes": backing_bytes,
++            "weight_mutability": "read_only",
++            "kv_mutability": "mutable",
++        }
++
+     def _get_kv_cache_memory_per_device_per_request(self) -> int:
+         # DECODE_FFN does not allocate KV cache blocks.
+         if self._cluster_type == ClusterType.DECODE_FFN:
+diff --git a/frontier/simulator.py b/frontier/simulator.py
+index b1e14fd45583d52b13910b9ecb79664cef4ef695..7c9c41be070bdbca863fe6b598964df7d87f1c3f 100644
+--- a/frontier/simulator.py
++++ b/frontier/simulator.py
+@@ -543,6 +543,32 @@ class Simulator:
+             + json.dumps(payload, indent=2, sort_keys=True, default=str)
+         )
+ 
++    def _build_sequential_incomplete_request_report(self) -> str:
++        """Build a fail-closed report when request accounting is incomplete."""
++        total_requests = int(self._metric_store.get_total_requests())
++        completed_requests = int(self._metric_store.get_completed_requests())
++        incomplete_request_ids = [
++            int(request.id)
++            for request in self._all_requests
++            if not bool(getattr(request, "completed", False))
++        ]
++        payload = {
++            "message": (
++                "Sequential simulation drained its event queue before all "
++                "requests completed"
++            ),
++            "simulation_time": self._time,
++            "event_queue_length": len(self._event_queue),
++            "total_requests": total_requests,
++            "completed_requests": completed_requests,
++            "incomplete_request_ids": incomplete_request_ids,
++        }
++        return (
++            "Sequential simulation drained its event queue before all requests "
++            "completed:\n"
++            + json.dumps(payload, indent=2, sort_keys=True)
++        )
++
+     def _try_promote_terminal_pdaf_scheduler_work(self) -> bool:
+         """Promote terminal PD-AF DECODE_FFN groups when no event can fill them.
+ 
+@@ -708,6 +734,19 @@ class Simulator:
+                 self._trace_store.close()
+             raise RuntimeError(report)
+ 
++        if (
++            not self._terminate
++            and not self._metric_store.all_requests_completed()
++        ):
++            report = self._build_sequential_incomplete_request_report()
++            logger.error(report)
++            if self._sequential_event_loggers:
++                for logger_instance in self._sequential_event_loggers.values():
++                    logger_instance.write_summary()
++            if self._trace_store:
++                self._trace_store.close()
++            raise RuntimeError(report)
++
+         if self._sequential_event_loggers:
+             for logger_instance in self._sequential_event_loggers.values():
+                 logger_instance.write_summary()
+diff --git a/frontier/spec_decode/mtp_runtime.py b/frontier/spec_decode/mtp_runtime.py
+index 0510cd9e087dce21827d7dd5c9cca395f8b09fab..4befa29c57f87cad42cc0ce342cc0eac2c4567f6 100644
+--- a/frontier/spec_decode/mtp_runtime.py
++++ b/frontier/spec_decode/mtp_runtime.py
+@@ -9,6 +9,7 @@ from typing import cast
+ from frontier.config.model_config import (
+     _infer_attn_output_gate_from_hf_config,
+     _infer_share_expert_dim_from_hf_config,
++    _infer_tie_word_embeddings_from_hf_config,
+     _infer_use_qk_norm_from_hf_config,
+ )
+ from frontier.config.precision_type import PrecisionType
+@@ -206,7 +207,7 @@ def _load_structural_model_config_from_json(model_name: str) -> StructuralModelC
+         qk_head_dim=raw.get("qk_head_dim"),
+         v_head_dim=raw.get("v_head_dim"),
+         quantization_config=None,
+-        tie_word_embeddings=bool(raw.get("tie_word_embeddings", True)),
++        tie_word_embeddings=_infer_tie_word_embeddings_from_hf_config(raw),
+     )
+     return StructuralModelConfigAdapter(profiling_config)
+ 
+diff --git a/frontier/utils/param_counter.py b/frontier/utils/param_counter.py
+index 727183071af3f85bcb23da0784ee5891645eb416..81cd2ed56bdbec6c56464cf59dabd6d2b26e704f 100644
+--- a/frontier/utils/param_counter.py
++++ b/frontier/utils/param_counter.py
+@@ -9,7 +9,7 @@ from frontier.spec_decode.mtp_runtime import (
+     load_mtp_structural_model_config,
+ )
+ from frontier.spec_decode.runtime import MTP_METHOD_FAMILIES, SUPPORTED_SPEC_METHODS
+-from frontier.types import ClusterType
++from frontier.types import ClusterType, NormType
+ 
+ 
+ class ParamCounter:
+@@ -21,6 +21,15 @@ class ParamCounter:
+         self._replica_config = replica_config
+         self._model_config = replica_config.model_config
+         self._cluster_type = cluster_type or ClusterType.MONOLITHIC
++        self._memory_precision = (
++            self._model_config.get_memory_precision_profile(
++                getattr(
++                    replica_config,
++                    "memory_precision_profile",
++                    "model_default",
++                )
++            )
++        )
+ 
+         # Validate configuration based on cluster type
+         if self._cluster_type != ClusterType.DECODE_FFN:
+@@ -200,31 +209,87 @@ class ParamCounter:
+         num_parameters += self._model_config.embedding_dim * num_experts
+         return num_parameters
+ 
+-    def get_num_attention_params_per_layer(self) -> int:
++    def _get_norm_parameter_multiplier(self) -> int:
++        if self._model_config.norm == NormType.RMS_NORM:
++            return 1
++        if self._model_config.norm == NormType.LAYER_NORM:
++            return 2
++        raise ValueError(
++            "Unsupported norm type for parameter counting: "
++            f"{self._model_config.norm!r}"
++        )
++
++    def _get_vocab_matrix_params_per_device(self) -> int:
+         if self._cluster_type == ClusterType.DECODE_FFN:
+             return 0
++        rows_per_worker = ceil(
++            int(self._model_config.vocab_size) / self._get_attn_tp_size()
++        )
++        return rows_per_worker * int(self._model_config.embedding_dim)
+ 
+-        if (self._q_heads_per_tensor_parallel_worker == 0 or
+-            self._kv_heads_per_tensor_parallel_worker == 0 or
+-            self._attention_head_dim == 0):
+-            return 0
++    def get_memory_precision_profile(self):
++        return self._memory_precision
+ 
+-        num_parameters = 0
+-        # Weights for attention matrices Wq, Wk, Wv.
+-        num_parameters += (
++    def _get_attention_matrix_params_per_layer(self) -> int:
++        if self._cluster_type == ClusterType.DECODE_FFN:
++            return 0
++        if (
++            self._q_heads_per_tensor_parallel_worker == 0
++            or self._kv_heads_per_tensor_parallel_worker == 0
++            or self._attention_head_dim == 0
++        ):
++            return 0
++        q_projection_multiplier = (
++            2 if getattr(self._model_config, "attn_output_gate", False) else 1
++        )
++        qkv = (
+             self._model_config.embedding_dim
+             * self._attention_head_dim
+             * (
+-                self._q_heads_per_tensor_parallel_worker
++                q_projection_multiplier
++                * self._q_heads_per_tensor_parallel_worker
+                 + 2 * self._kv_heads_per_tensor_parallel_worker
+             )
+         )
+-        # Weights for attention output projection Wo.
+-        num_parameters += (
++        output = (
+             self._model_config.embedding_dim
+             * self._attention_head_dim
+             * self._q_heads_per_tensor_parallel_worker
+         )
++        return qkv + output
++
++    def _get_dense_mlp_matrix_params_per_layer(self) -> int:
++        if self._cluster_type == ClusterType.DECODE_ATTN:
++            return 0
++        tensor_parallel_size = self._get_attn_tp_size()
++        return self._get_dense_mlp_params_per_layer(tensor_parallel_size)
++
++    def get_num_attention_params_per_layer(self) -> int:
++        if self._cluster_type == ClusterType.DECODE_FFN:
++            return 0
++
++        if (self._q_heads_per_tensor_parallel_worker == 0 or
++            self._kv_heads_per_tensor_parallel_worker == 0 or
++            self._attention_head_dim == 0):
++            return 0
++
++        num_parameters = self._get_attention_matrix_params_per_layer()
++        q_projection_multiplier = (
++            2 if getattr(self._model_config, "attn_output_gate", False) else 1
++        )
++        if (
++            getattr(self._model_config, "use_bias", False)
++            or getattr(self._model_config, "use_qkv_bias", False)
++        ):
++            num_parameters += self._attention_head_dim * (
++                q_projection_multiplier
++                * self._q_heads_per_tensor_parallel_worker
++                + 2 * self._kv_heads_per_tensor_parallel_worker
++            )
++        if getattr(self._model_config, "use_bias", False):
++            num_parameters += self._model_config.embedding_dim
++        if getattr(self._model_config, "use_qk_norm", False):
++            num_parameters += 2 * self._attention_head_dim
+         return num_parameters
+ 
+     def get_num_mlp_params_per_layer(self) -> int:
+@@ -239,30 +304,447 @@ class ParamCounter:
+         else:
+             tensor_parallel_size = self._get_attn_tp_size()
+ 
+-        return self._get_routed_moe_params_per_layer(tensor_parallel_size)
++        num_parameters = self._get_routed_moe_params_per_layer(
++            tensor_parallel_size
++        )
++        if (
++            getattr(self._model_config, "use_bias", False)
++            and not getattr(self._model_config, "is_moe", False)
++        ):
++            up_projection_multiplier = (
++                2 if getattr(self._model_config, "use_gated_mlp", False) else 1
++            )
++            num_parameters += (
++                up_projection_multiplier
++                * self._model_config.mlp_hidden_dim
++                // tensor_parallel_size
++            )
++            num_parameters += self._model_config.embedding_dim
++        return num_parameters
++
++    def get_num_norm_params_per_layer(self) -> int:
++        norm_vector_params = (
++            self._get_norm_parameter_multiplier()
++            * int(self._model_config.embedding_dim)
++        )
++        if self._cluster_type == ClusterType.DECODE_ATTN:
++            return norm_vector_params
++        if self._cluster_type == ClusterType.DECODE_FFN:
++            return (
++                norm_vector_params
++                if getattr(self._model_config, "post_attn_norm", False)
++                else 0
++            )
++        return norm_vector_params * (
++            1 + int(bool(getattr(self._model_config, "post_attn_norm", False)))
++        )
+ 
+     def get_num_parameters_per_layer(self) -> int:
+         return (
+             self.get_num_attention_params_per_layer()
+             + self.get_num_mlp_params_per_layer()
++            + self.get_num_norm_params_per_layer()
++        )
++
++    def get_num_norm_parameters_per_device(self) -> int:
++        return (
++            self.get_num_norm_params_per_layer()
++            * self._num_layers_per_pipeline_stage
++        )
++
++    def get_num_boundary_and_auxiliary_parameters_per_device(self) -> int:
++        if self._cluster_type == ClusterType.DECODE_FFN:
++            return 0
++        embedding_parameters = self._get_vocab_matrix_params_per_device()
++        final_norm_parameters = (
++            self._get_norm_parameter_multiplier()
++            * int(self._model_config.embedding_dim)
++        )
++        output_head_parameters = (
++            0
++            if getattr(self._model_config, "tie_word_embeddings", True)
++            else self._get_vocab_matrix_params_per_device()
++        )
++        last_stage_parameters = (
++            final_norm_parameters
++            + output_head_parameters
++            + self.get_num_mtp_parameters_per_device()
++        )
++        if int(self._replica_config.num_pipeline_stages) == 1:
++            return embedding_parameters + last_stage_parameters
++        return max(embedding_parameters, last_stage_parameters)
++
++    def _get_boundary_matrix_params_per_device(self) -> int:
++        if self._cluster_type == ClusterType.DECODE_FFN:
++            return 0
++        embedding_parameters = self._get_vocab_matrix_params_per_device()
++        output_head_parameters = (
++            0
++            if getattr(self._model_config, "tie_word_embeddings", True)
++            else embedding_parameters
++        )
++        final_norm_parameters = (
++            self._get_norm_parameter_multiplier()
++            * int(self._model_config.embedding_dim)
++        )
++        mtp_parameters = self.get_num_mtp_parameters_per_device()
++        if int(self._replica_config.num_pipeline_stages) == 1:
++            return embedding_parameters + output_head_parameters
++        first_stage_parameters = embedding_parameters
++        last_stage_parameters = (
++            final_norm_parameters + output_head_parameters + mtp_parameters
++        )
++        return (
++            embedding_parameters
++            if first_stage_parameters >= last_stage_parameters
++            else output_head_parameters
+         )
+ 
++    def _validate_scaled_memory_profile(self) -> None:
++        if self._memory_precision.quantization_scheme == "none":
++            return
++        if getattr(self._model_config, "is_moe", False):
++            raise ValueError(
++                "scaled memory precision currently supports dense models only"
++            )
++        if self._cluster_type != ClusterType.MONOLITHIC:
++            raise ValueError(
++                "scaled memory precision currently requires MONOLITHIC mode"
++            )
++        if (
++            int(self._replica_config.num_pipeline_stages) != 1
++            or self._get_attn_tp_size() != 1
++            or self._get_moe_tp_size() != 1
++            or self._get_ep_size() != 1
++        ):
++            raise ValueError(
++                "scaled memory precision currently requires PP=TP=EP=1"
++            )
++        if self.get_num_mtp_parameters_per_device() != 0:
++            raise ValueError(
++                "scaled memory precision does not yet support MTP parameters"
++            )
++
++    def _attention_scale_elements_per_layer(self) -> int:
++        if self._memory_precision.quantization_scheme == "none":
++            return 0
++        q_projection_multiplier = (
++            2 if getattr(self._model_config, "attn_output_gate", False) else 1
++        )
++        return (
++            q_projection_multiplier
++            * int(self._model_config.num_q_heads)
++            * int(self._attention_head_dim)
++            + 2
++            * int(self._model_config.num_kv_heads)
++            * int(self._attention_head_dim)
++            + int(self._model_config.embedding_dim)
++        )
++
++    def _mlp_scale_elements_per_layer(self) -> int:
++        if self._memory_precision.quantization_scheme == "none":
++            return 0
++        up_projection_multiplier = (
++            2 if getattr(self._model_config, "use_gated_mlp", False) else 1
++        )
++        return (
++            up_projection_multiplier * int(self._model_config.mlp_hidden_dim)
++            + int(self._model_config.embedding_dim)
++        )
++
++    def _boundary_scale_elements_per_device(self) -> int:
++        if (
++            self._memory_precision.quantization_scheme == "none"
++            or self._cluster_type == ClusterType.DECODE_FFN
++        ):
++            return 0
++        matrices = 1 + int(
++            not getattr(self._model_config, "tie_word_embeddings", True)
++        )
++        return matrices * int(self._model_config.vocab_size)
++
++    def _weight_memory_category(
++        self,
++        *,
++        parameters: int,
++        matrix_parameters: int,
++        scale_elements: int,
++    ) -> dict[str, int]:
++        if matrix_parameters < 0 or matrix_parameters > parameters:
++            raise ValueError(
++                "matrix parameter count must be within total parameter count"
++            )
++        non_matrix_parameters = parameters - matrix_parameters
++        matrix_payload_bytes = (
++            matrix_parameters * self._memory_precision.matrix_weight_bytes
++        )
++        non_matrix_payload_bytes = (
++            non_matrix_parameters
++            * self._memory_precision.non_matrix_weight_bytes
++        )
++        quantization_metadata_bytes = scale_elements * (
++            self._memory_precision.scale_bytes
++            + self._memory_precision.zero_point_bytes
++        )
++        return {
++            "parameters": int(parameters),
++            "matrix_parameters": int(matrix_parameters),
++            "non_matrix_parameters": int(non_matrix_parameters),
++            "matrix_payload_bytes": int(matrix_payload_bytes),
++            "non_matrix_payload_bytes": int(non_matrix_payload_bytes),
++            "scale_elements": int(scale_elements),
++            "quantization_metadata_bytes": int(
++                quantization_metadata_bytes
++            ),
++            "memory_bytes": int(
++                matrix_payload_bytes
++                + non_matrix_payload_bytes
++                + quantization_metadata_bytes
++            ),
++        }
++
++    def get_weight_memory_ledger_per_device(self) -> dict:
++        self._validate_scaled_memory_profile()
++        num_layers = self._num_layers_per_pipeline_stage
++        attention_parameters = (
++            self.get_num_attention_params_per_layer() * num_layers
++        )
++        attention_matrix_parameters = (
++            self._get_attention_matrix_params_per_layer() * num_layers
++        )
++        ffn_parameters = self.get_num_mlp_parameters_per_device()
++        if getattr(self._model_config, "is_moe", False):
++            ffn_matrix_parameters = ffn_parameters
++        else:
++            ffn_matrix_parameters = (
++                self._get_dense_mlp_matrix_params_per_layer() * num_layers
++            )
++        normalization_parameters = self.get_num_norm_parameters_per_device()
++        boundary_parameters = (
++            self.get_num_boundary_and_auxiliary_parameters_per_device()
++        )
++        categories = {
++            "attention": self._weight_memory_category(
++                parameters=attention_parameters,
++                matrix_parameters=attention_matrix_parameters,
++                scale_elements=(
++                    self._attention_scale_elements_per_layer() * num_layers
++                ),
++            ),
++            "ffn": self._weight_memory_category(
++                parameters=ffn_parameters,
++                matrix_parameters=ffn_matrix_parameters,
++                scale_elements=(
++                    self._mlp_scale_elements_per_layer() * num_layers
++                ),
++            ),
++            "normalization": self._weight_memory_category(
++                parameters=normalization_parameters,
++                matrix_parameters=0,
++                scale_elements=0,
++            ),
++            "pipeline_boundary_and_auxiliary": self._weight_memory_category(
++                parameters=boundary_parameters,
++                matrix_parameters=self._get_boundary_matrix_params_per_device(),
++                scale_elements=self._boundary_scale_elements_per_device(),
++            ),
++        }
++        total_parameters = sum(
++            category["parameters"] for category in categories.values()
++        )
++        expected_parameters = self.get_num_parameters_per_device()
++        if total_parameters != expected_parameters:
++            raise ValueError(
++                "weight-memory ledger parameter conservation failed: "
++                f"categories={total_parameters}, expected={expected_parameters}"
++            )
++        total_memory_bytes = sum(
++            category["memory_bytes"] for category in categories.values()
++        )
++        return {
++            "profile": self._memory_precision.to_dict(),
++            "total_parameters": int(total_parameters),
++            "total_memory_bytes": int(total_memory_bytes),
++            "matrix_payload_bytes": int(
++                sum(
++                    category["matrix_payload_bytes"]
++                    for category in categories.values()
++                )
++            ),
++            "non_matrix_payload_bytes": int(
++                sum(
++                    category["non_matrix_payload_bytes"]
++                    for category in categories.values()
++                )
++            ),
++            "quantization_metadata_bytes": int(
++                sum(
++                    category["quantization_metadata_bytes"]
++                    for category in categories.values()
++                )
++            ),
++            "categories": categories,
++        }
++
++    def get_dense_weight_streaming_ledger_per_device(self) -> dict:
++        """Return exact immutable objects used by hybrid layer streaming.
++
++        HBFSim's canonical Frontier path currently supports one dense,
++        monolithic PP=TP=EP=1 replica.  Under that contract, immutable weights
++        live in the backing tier and two HBM slots each hold the largest
++        executable weight object: embedding, one transformer layer, final
++        normalization, or the output head.
++        """
++        self._validate_scaled_memory_profile()
++        if self._cluster_type != ClusterType.MONOLITHIC:
++            raise ValueError(
++                "dense weight streaming requires MONOLITHIC cluster type"
++            )
++        if getattr(self._model_config, "is_moe", False):
++            raise ValueError("dense weight streaming does not support MoE")
++        if (
++            int(self._replica_config.num_pipeline_stages) != 1
++            or self._get_attn_tp_size() != 1
++            or self._get_moe_tp_size() != 1
++            or self._get_ep_size() != 1
++        ):
++            raise ValueError(
++                "dense weight streaming currently requires PP=TP=EP=1"
++            )
++
++        def add_categories(*categories: dict[str, int]) -> dict[str, int]:
++            fields = (
++                "parameters",
++                "matrix_parameters",
++                "non_matrix_parameters",
++                "matrix_payload_bytes",
++                "non_matrix_payload_bytes",
++                "scale_elements",
++                "quantization_metadata_bytes",
++                "memory_bytes",
++            )
++            return {
++                field: int(sum(category[field] for category in categories))
++                for field in fields
++            }
++
++        attention = self._weight_memory_category(
++            parameters=self.get_num_attention_params_per_layer(),
++            matrix_parameters=self._get_attention_matrix_params_per_layer(),
++            scale_elements=self._attention_scale_elements_per_layer(),
++        )
++        ffn = self._weight_memory_category(
++            parameters=self.get_num_mlp_params_per_layer(),
++            matrix_parameters=self._get_dense_mlp_matrix_params_per_layer(),
++            scale_elements=self._mlp_scale_elements_per_layer(),
++        )
++        normalization = self._weight_memory_category(
++            parameters=self.get_num_norm_params_per_layer(),
++            matrix_parameters=0,
++            scale_elements=0,
++        )
++        transformer_layer = add_categories(
++            attention,
++            ffn,
++            normalization,
++        )
++
++        vocabulary_matrix_parameters = (
++            self._get_vocab_matrix_params_per_device()
++        )
++        vocabulary_scale_elements = (
++            0
++            if self._memory_precision.quantization_scheme == "none"
++            else int(self._model_config.vocab_size)
++        )
++        embedding = self._weight_memory_category(
++            parameters=vocabulary_matrix_parameters,
++            matrix_parameters=vocabulary_matrix_parameters,
++            scale_elements=vocabulary_scale_elements,
++        )
++        tied_embeddings = bool(
++            getattr(self._model_config, "tie_word_embeddings", True)
++        )
++        output_head = self._weight_memory_category(
++            parameters=(
++                0 if tied_embeddings else vocabulary_matrix_parameters
++            ),
++            matrix_parameters=(
++                0 if tied_embeddings else vocabulary_matrix_parameters
++            ),
++            scale_elements=(
++                0 if tied_embeddings else vocabulary_scale_elements
++            ),
++        )
++        final_norm_parameters = (
++            self._get_norm_parameter_multiplier()
++            * int(self._model_config.embedding_dim)
++        )
++        final_norm = self._weight_memory_category(
++            parameters=final_norm_parameters,
++            matrix_parameters=0,
++            scale_elements=0,
++        )
++        objects = {
++            "embedding": embedding,
++            "transformer_layer": transformer_layer,
++            "final_norm": final_norm,
++            "output_head": output_head,
++        }
++        num_layers = int(self._model_config.num_layers)
++        reconstructed_weight_bytes = (
++            embedding["memory_bytes"]
++            + num_layers * transformer_layer["memory_bytes"]
++            + final_norm["memory_bytes"]
++            + output_head["memory_bytes"]
++        )
++        reconstructed_parameters = (
++            embedding["parameters"]
++            + num_layers * transformer_layer["parameters"]
++            + final_norm["parameters"]
++            + output_head["parameters"]
++        )
++        complete = self.get_weight_memory_ledger_per_device()
++        if (
++            reconstructed_weight_bytes != complete["total_memory_bytes"]
++            or reconstructed_parameters != complete["total_parameters"]
++        ):
++            raise ValueError(
++                "dense streaming object ledger does not conserve weights"
++            )
++        return {
++            "num_transformer_layers": num_layers,
++            "objects": objects,
++            "active_buffer_bytes_per_slot": int(
++                max(
++                    object_ledger["memory_bytes"]
++                    for object_ledger in objects.values()
++                )
++            ),
++            "immutable_weight_backing_bytes": int(
++                complete["total_memory_bytes"]
++            ),
++            "total_parameters": int(complete["total_parameters"]),
++        }
++
+     def get_num_parameters_per_device(self) -> int:
+         if not getattr(self._model_config, "is_moe", False):
+             num_parameters_per_layer = self.get_num_parameters_per_layer()
+             return (
+                 num_parameters_per_layer * self._num_layers_per_pipeline_stage
+-                + self.get_num_mtp_parameters_per_device()
++                + self.get_num_boundary_and_auxiliary_parameters_per_device()
+             )
+ 
+         num_attention_parameters = (
+             self.get_num_attention_params_per_layer() * self._num_layers_per_pipeline_stage
+         )
+         num_mlp_parameters = self.get_num_mlp_parameters_per_device()
++        num_norm_parameters = self.get_num_norm_parameters_per_device()
+         return (
+             num_attention_parameters
+             + num_mlp_parameters
+-            + self.get_num_mtp_parameters_per_device()
++            + num_norm_parameters
++            + self.get_num_boundary_and_auxiliary_parameters_per_device()
+         )
+ 
+     def get_num_mlp_parameters_per_device(self) -> int:
+diff --git a/tests/unit/test_hbfsim_memory_contract.py b/tests/unit/test_hbfsim_memory_contract.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..9abb23928a2fef2396cc5a1a7c90520ba0116988
+--- /dev/null
++++ b/tests/unit/test_hbfsim_memory_contract.py
+@@ -0,0 +1,825 @@
++from __future__ import annotations
++
++import json
++from pathlib import Path
++from types import SimpleNamespace
++
++import pytest
++
++from frontier.config import ReplicaConfig
++from frontier.config.model_config import (
++    BaseModelConfig,
++    _infer_tie_word_embeddings_from_hf_config,
++)
++from frontier.config.utils import dataclass_to_dict
++from frontier.entities.batch import Batch
++from frontier.entities.batch_stage import BatchStage
++from frontier.entities.request import Request
++from frontier.errors import FrontierMemoryOOMError
++from frontier.kv_cache.base_kv_cache_manager import KVCacheManager
++from frontier.kv_cache.hbfsim_memory_contract import (
++    ALLOCATOR_STATE_SCHEMA_VERSION,
++    INTEGRATION_ID,
++    MEMORY_CONTRACT_SCHEMA_VERSION,
++    RESIDENCY_PLAN_SCHEMA_VERSION,
++    allocator_state_sha256,
++)
++from frontier.kv_cache.kv_cache_block_pool import BlockPool
++from frontier.metrics.metrics_store import MetricsStore
++from frontier.scheduler.replica_scheduler.vllm_v1_engine_replica_scheduler import (
++    VLLMv1EngineReplicaScheduler,
++)
++from frontier.scheduler.utils.memory_planner import MemoryPlanner
++from frontier.simulator import Simulator
++from frontier.types import ClusterType
++from frontier.utils.param_counter import ParamCounter
++
++
++def test_model_source_and_resident_parameter_count_are_exact() -> None:
++    assert (
++        _infer_tie_word_embeddings_from_hf_config(
++            {
++                "model_type": "llama",
++                "architectures": ["LlamaForCausalLM"],
++            }
++        )
++        is False
++    )
++    with pytest.raises(ValueError, match="must be bool"):
++        _infer_tie_word_embeddings_from_hf_config(
++            {"model_type": "llama", "tie_word_embeddings": "false"}
++        )
++
++    model = BaseModelConfig.create_from_name("llama2_7b_dense_example")
++    assert model.tie_word_embeddings is False
++    assert (
++        model.source_config_path
++        == "data/config/models/llama2_7b_dense_example.json"
++    )
++    assert model.source_config_sha256 == (
++        "7960310d729126433950384c5d7d4c3465b4161c9db9ca5c0053c46b0db8891d"
++    )
++
++    replica_config = ReplicaConfig(
++        model_name="llama2_7b_dense_example",
++        device="h800",
++        attn_tensor_parallel_size=1,
++        moe_tensor_parallel_size=1,
++        moe_expert_parallel_size=1,
++        num_pipeline_stages=1,
++        memory_margin_fraction=0.1,
++    )
++    counter = ParamCounter(replica_config, ClusterType.MONOLITHIC)
++    assert counter.get_num_attention_params_per_layer() == 67_108_864
++    assert counter.get_num_mlp_params_per_layer() == 135_266_304
++    assert counter.get_num_norm_params_per_layer() == 8_192
++    assert counter.get_num_parameters_per_layer() == 202_383_360
++    assert counter.get_num_norm_parameters_per_device() == 262_144
++    assert (
++        counter.get_num_boundary_and_auxiliary_parameters_per_device()
++        == 262_148_096
++    )
++    assert counter.get_num_parameters_per_device() == 6_738_415_616
++    native_ledger = counter.get_weight_memory_ledger_per_device()
++    assert native_ledger["profile"]["profile_id"] == "native-fp16-kv-fp16"
++    assert native_ledger["total_parameters"] == 6_738_415_616
++    assert native_ledger["total_memory_bytes"] == 13_476_831_232
++    assert native_ledger["quantization_metadata_bytes"] == 0
++
++    planner = MemoryPlanner(
++        replica_config=replica_config,
++        replica=SimpleNamespace(
++            total_memory_gb=80,
++            memory_margin_fraction=0.1,
++            max_request_tokens=4096,
++            kv_heads_per_tensor_parallel_worker=32,
++            attention_head_dim=128,
++            num_layers=32,
++        ),
++        cluster_type=ClusterType.MONOLITHIC,
++    )
++    assert planner.get_parameter_memory_per_device_bytes() == 13_476_831_232
++    assert planner.get_num_blocks(block_size=16) == 7_609
++
++
++def test_llama31_70b_memory_precision_ledgers_are_exact() -> None:
++    assert MEMORY_CONTRACT_SCHEMA_VERSION == 4
++    assert RESIDENCY_PLAN_SCHEMA_VERSION == 1
++    assert INTEGRATION_ID == "hbfsim.frontier-hybrid-residency.v8"
++    model = BaseModelConfig.create_from_name("llama31_70b")
++    assert model.get_name() == "llama31_70b"
++    assert model.source_config_path == "data/config/models/llama31_70b.json"
++    assert model.source_config_sha256 == (
++        "36efd57083a1fbc2446994be83f113565e23e00a2a9fdd98cc6ee4a6cd3603ae"
++    )
++    assert model.model_source_identity == {
++        "repository": "https://huggingface.co/meta-llama/Llama-3.1-70B",
++        "revision": "1605565b47bb9346c5515c34102e054115b4f98b",
++        "config_access": "gated",
++        "geometry_cross_check": (
++            "official model plus public byte-identical architecture mirrors"
++        ),
++    }
++    serialized_model = dataclass_to_dict(model)
++    json.dumps(serialized_model)
++    assert serialized_model["memory_precision_profiles"][
++        "w8a16-kv-bf16"
++    ]["matrix_weight_dtype"] == "int8"
++
++    w8_replica = ReplicaConfig(
++        model_name="llama31_70b",
++        memory_precision_profile="w8a16-kv-bf16",
++        device="h200",
++        attn_tensor_parallel_size=1,
++        moe_tensor_parallel_size=1,
++        moe_expert_parallel_size=1,
++        num_pipeline_stages=1,
++        memory_margin_fraction=0.0,
++    )
++    w8_counter = ParamCounter(w8_replica, ClusterType.MONOLITHIC)
++    w8_ledger = w8_counter.get_weight_memory_ledger_per_device()
++    assert w8_counter.get_num_parameters_per_device() == 70_553_706_496
++    assert w8_ledger["total_parameters"] == 70_553_706_496
++    assert w8_ledger["total_memory_bytes"] == 70_568_973_312
++    assert w8_ledger["matrix_payload_bytes"] == 70_552_387_584
++    assert w8_ledger["non_matrix_payload_bytes"] == 2_637_824
++    assert w8_ledger["quantization_metadata_bytes"] == 13_947_904
++    assert {
++        name: category["memory_bytes"]
++        for name, category in w8_ledger["categories"].items()
++    } == {
++        "attention": 12_082_544_640,
++        "ffn": 56_381_931_520,
++        "normalization": 2_621_440,
++        "pipeline_boundary_and_auxiliary": 2_101_875_712,
++    }
++    assert sum(
++        category["memory_bytes"]
++        for category in w8_ledger["categories"].values()
++    ) == w8_ledger["total_memory_bytes"]
++
++    planner = MemoryPlanner(
++        replica_config=w8_replica,
++        replica=SimpleNamespace(
++            total_memory_gb=96,
++            memory_margin_fraction=0.0,
++            max_request_tokens=131_072,
++            kv_heads_per_tensor_parallel_worker=8,
++            attention_head_dim=128,
++            num_layers=80,
++        ),
++        cluster_type=ClusterType.MONOLITHIC,
++    )
++    assert planner.get_parameter_memory_per_device_bytes() == 70_568_973_312
++    streaming = (
++        planner._param_counter.get_dense_weight_streaming_ledger_per_device()
++    )
++    assert streaming["active_buffer_bytes_per_slot"] == 1_050_929_664
++    assert streaming["immutable_weight_backing_bytes"] == 70_568_973_312
++    plan = planner.get_hybrid_residency_plan(
++        block_size=16,
++        physical_hbm_capacity_bytes=96 * 1024**3,
++        target_pressure=1.0,
++        runtime_overhead_bytes=8 * 1024**3,
++    )
++    assert plan == {
++        "schema_version": 1,
++        "policy": "hybrid_residency_v1",
++        "pressure_basis": (
++            "unique_resident_footprint_bytes/"
++            "physical_hbm_capacity_bytes"
++        ),
++        "target_pressure": "1.0",
++        "target_pressure_numerator": 1,
++        "target_pressure_denominator": 1,
++        "physical_hbm_capacity_bytes": 103_079_215_104,
++        "target_footprint_bytes": 103_079_215_104,
++        "unique_resident_footprint_bytes": 103_076_944_712,
++        "target_rounding_slack_bytes": 2_270_392,
++        "immutable_weight_backing_bytes": 70_568_973_312,
++        "runtime_overhead_bytes": 8_589_934_592,
++        "runtime_overhead_source": "configured_unprofiled_sensitivity",
++        "hardware_capacity_calibrated": False,
++        "active_weight_buffer_count": 2,
++        "active_weight_buffer_bytes_per_slot": 1_050_929_664,
++        "active_weight_buffer_bytes": 2_101_859_328,
++        "block_table_entry_bytes": 4,
++        "block_table_bytes": 18_248,
++        "kv_block_size_tokens": 16,
++        "kv_page_bytes_per_layer": 65_536,
++        "num_layers": 80,
++        "kv_block_stride_bytes": 5_242_880,
++        "num_logical_kv_blocks": 4_562,
++        "logical_kv_bytes": 23_918_018_560,
++        "hot_kv_blocks": 4_562,
++        "hot_kv_bytes": 23_918_018_560,
++        "cold_kv_blocks": 0,
++        "cold_kv_bytes": 0,
++        "fixed_hbm_bytes": 10_691_812_168,
++        "unused_hbm_bytes": 68_469_384_376,
++        "backing_bytes": 70_568_973_312,
++        "weight_mutability": "read_only",
++        "kv_mutability": "mutable",
++    }
++
++    bf16_replica = ReplicaConfig(
++        model_name="llama31_70b",
++        memory_precision_profile="bf16-kv-bf16",
++        device="h200",
++        attn_tensor_parallel_size=1,
++        moe_tensor_parallel_size=1,
++        moe_expert_parallel_size=1,
++        num_pipeline_stages=1,
++        memory_margin_fraction=0.0,
++    )
++    bf16_ledger = ParamCounter(
++        bf16_replica,
++        ClusterType.MONOLITHIC,
++    ).get_weight_memory_ledger_per_device()
++    assert bf16_ledger["total_parameters"] == 70_553_706_496
++    assert bf16_ledger["total_memory_bytes"] == 141_107_412_992
++    assert bf16_ledger["quantization_metadata_bytes"] == 0
++    bf16_planner = MemoryPlanner(
++        replica_config=bf16_replica,
++        replica=SimpleNamespace(
++            total_memory_gb=96,
++            memory_margin_fraction=0.0,
++            max_request_tokens=131_072,
++            kv_heads_per_tensor_parallel_worker=8,
++            attention_head_dim=128,
++            num_layers=80,
++        ),
++        cluster_type=ClusterType.MONOLITHIC,
++    )
++    with pytest.raises(
++        FrontierMemoryOOMError,
++        match="cannot contain immutable weights",
++    ) as error:
++        bf16_planner.get_hybrid_residency_plan(
++            block_size=16,
++            physical_hbm_capacity_bytes=96 * 1024**3,
++            target_pressure=1.25,
++            runtime_overhead_bytes=8 * 1024**3,
++        )
++    assert error.value.reason == "target_footprint_below_immutable_state"
++
++    with pytest.raises(ValueError, match="Unknown memory precision profile"):
++        ReplicaConfig(
++            model_name="llama31_70b",
++            memory_precision_profile="unbound-w4",
++            device="h200",
++            attn_tensor_parallel_size=1,
++            moe_tensor_parallel_size=1,
++            moe_expert_parallel_size=1,
++            num_pipeline_stages=1,
++            memory_margin_fraction=0.0,
++        )
++
++
++def test_hybrid_residency_grid_conserves_unique_hbm_and_backing_bytes() -> None:
++    replica_config = ReplicaConfig(
++        model_name="llama31_70b",
++        memory_precision_profile="w8a16-kv-bf16",
++        device="h20",
++        attn_tensor_parallel_size=1,
++        moe_tensor_parallel_size=1,
++        moe_expert_parallel_size=1,
++        num_pipeline_stages=1,
++        memory_margin_fraction=0.0,
++    )
++    planner = MemoryPlanner(
++        replica_config=replica_config,
++        replica=SimpleNamespace(
++            total_memory_gb=96,
++            memory_margin_fraction=0.0,
++            max_request_tokens=131_072,
++            kv_heads_per_tensor_parallel_worker=8,
++            attention_head_dim=128,
++            num_layers=80,
++        ),
++        cluster_type=ClusterType.MONOLITHIC,
++    )
++    for capacity_gib in (96, 192, 288, 384):
++        for target in (0.75, 1.0, 1.25, 1.5, 2.0):
++            if capacity_gib == 96 and target == 0.75:
++                with pytest.raises(
++                    FrontierMemoryOOMError,
++                    match="cannot contain immutable weights",
++                ):
++                    planner.get_hybrid_residency_plan(
++                        block_size=16,
++                        physical_hbm_capacity_bytes=capacity_gib * 1024**3,
++                        target_pressure=target,
++                        runtime_overhead_bytes=8 * 1024**3,
++                    )
++                continue
++            plan = planner.get_hybrid_residency_plan(
++                block_size=16,
++                physical_hbm_capacity_bytes=capacity_gib * 1024**3,
++                target_pressure=target,
++                runtime_overhead_bytes=8 * 1024**3,
++            )
++            assert (
++                plan["unique_resident_footprint_bytes"]
++                + plan["target_rounding_slack_bytes"]
++                == plan["target_footprint_bytes"]
++            )
++            assert plan["target_rounding_slack_bytes"] < (
++                plan["kv_block_stride_bytes"]
++                + plan["block_table_entry_bytes"]
++            )
++            assert plan["unique_resident_footprint_bytes"] == (
++                plan["immutable_weight_backing_bytes"]
++                + plan["runtime_overhead_bytes"]
++                + plan["block_table_bytes"]
++                + plan["logical_kv_bytes"]
++            )
++            assert plan["num_logical_kv_blocks"] == (
++                plan["hot_kv_blocks"] + plan["cold_kv_blocks"]
++            )
++            assert plan["logical_kv_bytes"] == (
++                plan["hot_kv_bytes"] + plan["cold_kv_bytes"]
++            )
++            assert plan["physical_hbm_capacity_bytes"] == (
++                plan["fixed_hbm_bytes"]
++                + plan["hot_kv_bytes"]
++                + plan["unused_hbm_bytes"]
++            )
++            assert plan["fixed_hbm_bytes"] == (
++                plan["runtime_overhead_bytes"]
++                + plan["block_table_bytes"]
++                + plan["active_weight_buffer_bytes"]
++            )
++            assert plan["backing_bytes"] == (
++                plan["immutable_weight_backing_bytes"]
++                + plan["cold_kv_bytes"]
++            )
++
++
++def _manager(*, num_blocks: int = 2) -> KVCacheManager:
++    return KVCacheManager(
++        block_size=2,
++        num_gpu_blocks=num_blocks,
++        enable_caching=True,
++        caching_hash_algo="builtin",
++        num_preallocate_tokens=0,
++        lifecycle_stream_id="monolithic:replica-0:dp-0",
++    )
++
++
++def _request(
++    block_hash: int,
++    *,
++    num_prefill_tokens: int = 2,
++    extra_block_hashes: list[int] | None = None,
++) -> Request:
++    return Request(
++        arrived_at=0.0,
++        num_prefill_tokens=num_prefill_tokens,
++        num_decode_tokens=1,
++        block_hash_ids=[block_hash, *(extra_block_hashes or [])],
++    )
++
++
++def _admit_full_block(
++    manager: KVCacheManager,
++    request: Request,
++    *,
++    event_time: float,
++) -> None:
++    computed_blocks, _ = manager.get_computed_blocks(
++        request,
++        event_time=event_time,
++    )
++    num_cached_tokens = len(computed_blocks) * manager.block_size
++    if num_cached_tokens == request.num_prefill_tokens and computed_blocks:
++        computed_blocks = computed_blocks[:-1]
++        num_cached_tokens -= manager.block_size
++    manager.record_prefix_admission(
++        request,
++        computed_blocks,
++        event_time=event_time,
++    )
++    allocated = manager.allocate_slots(
++        request,
++        request.num_prefill_tokens - num_cached_tokens,
++        new_computed_blocks=computed_blocks,
++        event_time=event_time,
++    )
++    assert allocated is not None
++
++
++def test_kv_lifecycle_records_hit_release_and_physical_block_eviction() -> None:
++    manager = _manager()
++
++    first = _request(101)
++    _admit_full_block(manager, first, event_time=0.0)
++    manager.free(first, event_time=1.0)
++
++    shared = _request(101, num_prefill_tokens=4, extra_block_hashes=[202])
++    _admit_full_block(manager, shared, event_time=2.0)
++    manager.free(shared, event_time=3.0)
++
++    replacement = _request(303)
++    _admit_full_block(manager, replacement, event_time=4.0)
++
++    events = manager.drain_lifecycle_events()
++    assert [event["event_index"] for event in events] == list(range(len(events)))
++    assert [event["event_id"] for event in events] == [
++        f"monolithic:replica-0:dp-0:{index:012d}"
++        for index in range(len(events))
++    ]
++    shared_touch = next(
++        event
++        for event in events
++        if event["event"] == "touch"
++        and event["request_id"] == str(shared.id)
++    )
++    assert shared_touch["blocks"][0]["ref_count_after"] == 1
++    eviction = next(event for event in events if event["event"] == "evict")
++    assert eviction["evicted_block_hash"] == 202
++
++
++def test_partial_prompt_block_is_never_queried_or_cached() -> None:
++    manager = _manager(num_blocks=3)
++    first = _request(
++        101,
++        num_prefill_tokens=3,
++        extra_block_hashes=[202],
++    )
++
++    _admit_full_block(manager, first, event_time=0.0)
++    assert [block.block_hash for block in manager.req_to_blocks[first.id]] == [
++        101,
++        None,
++    ]
++
++    first._num_processed_tokens = first.num_prefill_tokens
++    assert manager.allocate_slots(first, 1, event_time=1.0) is not None
++    assert [block.block_hash for block in manager.req_to_blocks[first.id]] == [
++        101,
++        None,
++    ]
++    manager.free(first, event_time=2.0)
++
++    second = _request(
++        101,
++        num_prefill_tokens=3,
++        extra_block_hashes=[202],
++    )
++    computed_blocks, computed_tokens = manager.get_computed_blocks(
++        second,
++        event_time=3.0,
++    )
++    assert computed_tokens == 2
++    assert [block.block_hash for block in computed_blocks] == [101]
++    lookup = manager.peek_lifecycle_events()[-1]
++    assert lookup["event"] == "prefix_lookup"
++    assert lookup["requested_block_hashes"] == [101]
++    assert lookup["hit_tokens"] == 2
++
++
++def test_prefix_admission_rejects_cached_frontier_past_prefill() -> None:
++    manager = SimpleNamespace(
++        get_computed_blocks=lambda request, event_time: ([object(), object()], 4),
++        prefix_cache_stats=SimpleNamespace(hits=2),
++    )
++    scheduler = _scheduler_with_manager(manager)
++    scheduler._config = SimpleNamespace(block_size=2)
++    request = _request(
++        101,
++        num_prefill_tokens=3,
++        extra_block_hashes=[202],
++    )
++
++    with pytest.raises(
++        RuntimeError,
++        match="Prefix-cache lookup exceeded the request prefill frontier",
++    ):
++        scheduler._prepare_prefix_cache_admission(request)
++
++
++def test_block_pool_rejects_double_free() -> None:
++    pool = BlockPool(num_gpu_blocks=1, enable_caching=True)
++    acquisition = pool.get_new_blocks(1)[0]
++    pool.free_blocks([acquisition.block])
++    with pytest.raises(ValueError, match="ref_cnt=0"):
++        pool.free_blocks([acquisition.block])
++
++
++def _scheduler_with_manager(manager: KVCacheManager) -> VLLMv1EngineReplicaScheduler:
++    scheduler = VLLMv1EngineReplicaScheduler.__new__(
++        VLLMv1EngineReplicaScheduler
++    )
++    scheduler._kv_cache_manager = manager
++    scheduler._current_schedule_time = 7.5
++    scheduler._active_schedule_iteration_id = 11
++    scheduler._cluster_type = ClusterType.MONOLITHIC
++    scheduler._replica_id = 0
++    scheduler._dp_id = 0
++    scheduler._enable_preemption = False
++    scheduler._hbfsim_hybrid_residency_plan = {
++        "schema_version": 1,
++        "policy": "hybrid_residency_v1",
++        "num_logical_kv_blocks": int(
++            getattr(manager, "num_gpu_blocks", 1)
++        ),
++    }
++    return scheduler
++
++
++def test_batch_contract_is_compact_digest_bound_and_immutable() -> None:
++    manager = _manager()
++    request = _request(111)
++    _admit_full_block(manager, request, event_time=7.5)
++    scheduler = _scheduler_with_manager(manager)
++    batch = Batch(
++        replica_id=0,
++        requests=[request],
++        num_tokens=[2],
++        is_moe=False,
++    )
++
++    contract, lifecycle_events = scheduler._build_hbfsim_memory_contract(batch)
++    batch.set_hbfsim_memory_evidence(contract, lifecycle_events)
++
++    snapshot = contract["requests"][0]
++    assert contract["schema_version"] == MEMORY_CONTRACT_SCHEMA_VERSION
++    assert contract["allocator_state"]["schema_version"] == (
++        ALLOCATOR_STATE_SCHEMA_VERSION
++    )
++    assert contract["kv_cache"]["no_preemption_admission_policy"] == (
++        "full_request_kv_reservation_v1"
++    )
++    assert contract["residency_plan"] == (
++        scheduler._hbfsim_hybrid_residency_plan
++    )
++    assert "lifecycle_events" not in contract
++    assert "allocated_blocks" not in snapshot
++    assert snapshot["allocated_block_count"] == 1
++    assert snapshot["allocator_state_sha256"] == allocator_state_sha256(
++        str(request.id),
++        [{"block_id": 0, "block_hash": 111, "ref_count": 1}],
++    )
++
++    visible = batch.hbfsim_memory_contract
++    visible["requests"][0]["scheduled_tokens"] = 999
++    assert batch.hbfsim_memory_contract["requests"][0]["scheduled_tokens"] == 2
++    visible_events = batch.hbfsim_kv_lifecycle_events
++    visible_events[0]["event"] = "mutated"
++    assert batch.hbfsim_kv_lifecycle_events[0]["event"] == "prefix_lookup"
++
++    stage = BatchStage(
++        batch_id=batch.id,
++        replica_id=0,
++        pipeline_stage=0,
++        execution_time=1.0,
++        model_execution_time=1.0,
++        requests=batch.requests,
++        num_tokens=batch.num_tokens,
++        cluster_type=ClusterType.MONOLITHIC,
++        hbfsim_memory_contract=batch.hbfsim_memory_contract,
++        hbfsim_kv_lifecycle_events=batch.hbfsim_kv_lifecycle_events,
++    )
++    assert stage.hbfsim_memory_contract == contract
++    assert stage.hbfsim_kv_lifecycle_events == lifecycle_events
++
++
++def _metrics_store(output_dir: Path) -> MetricsStore:
++    store = MetricsStore.__new__(MetricsStore)
++    store._config = SimpleNamespace(
++        output_dir=str(output_dir),
++        store_frontier_stage_batch_ledger=True,
++        store_frontier_stage_batch_ledger_summary=False,
++    )
++    store._frontier_stage_batch_ledger_rows = []
++    store._frontier_stage_batch_ledger_summary = (
++        store._new_frontier_stage_batch_ledger_summary()
++    )
++    store._frontier_kv_block_lifecycle_events = []
++    store._frontier_kv_block_lifecycle_event_keys = set()
++    return store
++
++
++def test_metrics_store_rejects_duplicates_and_atomically_writes_lifecycle(
++    tmp_path: Path,
++) -> None:
++    store = _metrics_store(tmp_path)
++    event = {
++        "schema_version": 1,
++        "stream_id": "monolithic:replica-0:dp-0",
++        "event_index": 0,
++        "event_id": "monolithic:replica-0:dp-0:000000000000",
++        "event_time": 1.25,
++        "event": "release",
++        "request_id": "7",
++        "blocks": [],
++    }
++    store.record_frontier_kv_lifecycle_events(
++        [event],
++        observed_after_batch_id=9,
++        cluster_type=ClusterType.MONOLITHIC,
++        replica_id=0,
++        dp_id=0,
++    )
++    with pytest.raises(ValueError, match="Duplicate"):
++        store.record_frontier_kv_lifecycle_events(
++            [event],
++            observed_after_batch_id=9,
++            cluster_type=ClusterType.MONOLITHIC,
++            replica_id=0,
++            dp_id=0,
++        )
++
++    store._write_frontier_stage_batch_ledger()
++    lifecycle_path = tmp_path / "frontier_kv_block_lifecycle.jsonl"
++    rows = [
++        json.loads(line)
++        for line in lifecycle_path.read_text(encoding="utf-8").splitlines()
++    ]
++    assert rows[0]["event_id"] == event["event_id"]
++    assert rows[0]["observed_after_batch_id"] == 9
++    integration = json.loads(
++        (tmp_path / "frontier_hbfsim_integration.json").read_text(
++            encoding="utf-8"
++        )
++    )
++    assert integration["integration_id"] == (
++        "hbfsim.frontier-hybrid-residency.v8"
++    )
++    assert not list(tmp_path.glob("*.tmp"))
++
++
++def test_metrics_store_consumes_private_event_sidecar_without_serializing_it(
++    tmp_path: Path,
++) -> None:
++    store = _metrics_store(tmp_path)
++    event = {
++        "schema_version": 1,
++        "stream_id": "monolithic:replica-0:dp-0",
++        "event_index": 0,
++        "event_id": "monolithic:replica-0:dp-0:000000000000",
++        "event_time": 0.0,
++        "event": "allocate",
++        "request_id": "0",
++        "block_id": 0,
++        "ref_count_before": 0,
++        "ref_count_after": 1,
++    }
++    row = {
++        "batch_id": 0,
++        "cluster_type": "MONOLITHIC",
++        "replica_id": 0,
++        "dp_id": 0,
++        "hbfsim_memory_contract": {"schema_version": 4},
++        "_hbfsim_kv_lifecycle_events": [event],
++    }
++
++    store._complete_frontier_stage_batch_ledger_row(row)
++
++    assert "_hbfsim_kv_lifecycle_events" not in row
++    assert store._frontier_stage_batch_ledger_rows == [row]
++    assert len(store._frontier_kv_block_lifecycle_events) == 1
++
++
++def test_stage_ledger_completion_does_not_depend_on_utilization_metrics() -> None:
++    store = MetricsStore.__new__(MetricsStore)
++    store._config = SimpleNamespace(
++        write_metrics=True,
++        store_utilization_metrics=False,
++        store_frontier_stage_batch_ledger=True,
++        store_frontier_stage_batch_ledger_summary=False,
++    )
++    stage = SimpleNamespace()
++    row = {
++        "batch_id": 7,
++        "stage_id": 0,
++        "cluster_type": "MONOLITHIC",
++        "replica_id": 0,
++        "dp_id": 0,
++        "stage_start_ts": 1.0,
++        "stage_end_ts": 1.5,
++    }
++    key = store._frontier_stage_batch_ledger_key(
++        batch_id=7,
++        replica_id=0,
++        stage_id=0,
++        cluster_type=ClusterType.MONOLITHIC,
++        dp_id=0,
++    )
++    store._pending_frontier_stage_batch_ledger_rows = {id(stage): row}
++    store._pending_frontier_stage_batch_ledger_row_keys = {key: id(stage)}
++    store._pending_frontier_stage_batch_ledger_rows_by_key = {key: row}
++    store._frontier_stage_batch_ledger_rows = []
++    store._frontier_stage_batch_ledger_summary = (
++        store._new_frontier_stage_batch_ledger_summary()
++    )
++
++    store.on_batch_stage_end(
++        batch_stage=stage,
++        time=2.0,
++        replica_id=0,
++        stage_id=0,
++        cluster_type=ClusterType.MONOLITHIC,
++        dp_id=0,
++    )
++
++    assert store._frontier_stage_batch_ledger_rows == [row]
++    assert row["stage_end_ts"] == 2.0
++    assert store._pending_frontier_stage_batch_ledger_rows == {}
++    assert store._pending_frontier_stage_batch_ledger_row_keys == {}
++    assert store._pending_frontier_stage_batch_ledger_rows_by_key == {}
++
++
++def test_no_preemption_admission_reserves_each_request_full_kv_frontier() -> None:
++    scheduler = VLLMv1EngineReplicaScheduler.__new__(
++        VLLMv1EngineReplicaScheduler
++    )
++    scheduler._config = SimpleNamespace(block_size=16, num_blocks=100)
++    scheduler._enable_preemption = False
++    scheduler._running_requests = [
++        SimpleNamespace(id=1, total_tokens=801),
++    ]
++
++    fitting = SimpleNamespace(id=2, total_tokens=801)
++    overflowing = SimpleNamespace(id=3, total_tokens=817)
++    impossible = SimpleNamespace(id=4, total_tokens=1602)
++
++    assert scheduler._get_no_preemption_reserved_blocks() == 50
++    assert scheduler._can_admit_without_preemption(fitting) is True
++    assert scheduler._can_admit_without_preemption(overflowing) is False
++    with pytest.raises(ValueError, match="maximum KV footprint"):
++        scheduler._can_admit_without_preemption(impossible)
++
++
++def test_sequential_completion_report_names_dropped_requests() -> None:
++    simulator = Simulator.__new__(Simulator)
++    simulator._time = 42.5
++    simulator._event_queue = []
++    simulator._all_requests = [
++        SimpleNamespace(id=0, completed=True),
++        SimpleNamespace(id=55, completed=False),
++        SimpleNamespace(id=84, completed=False),
++    ]
++    simulator._metric_store = SimpleNamespace(
++        get_total_requests=lambda: 3,
++        get_completed_requests=lambda: 1,
++    )
++
++    report = simulator._build_sequential_incomplete_request_report()
++
++    assert '"completed_requests": 1' in report
++    assert '"total_requests": 3' in report
++    assert '"incomplete_request_ids": [' in report
++    assert "55" in report
++    assert "84" in report
++
++
++def test_sequential_run_rejects_drained_queue_with_incomplete_requests() -> None:
++    simulator = Simulator.__new__(Simulator)
++    simulator._time = 42.5
++    simulator._time_limit = float("inf")
++    simulator._terminate = False
++    simulator._event_queue = []
++    simulator._all_requests = [SimpleNamespace(id=55, completed=False)]
++    simulator._global_scheduler = SimpleNamespace(is_empty=True)
++    simulator._metric_store = SimpleNamespace(
++        get_total_requests=lambda: 1,
++        get_completed_requests=lambda: 0,
++        all_requests_completed=lambda: False,
++    )
++    simulator._profiler = SimpleNamespace(record_phase=lambda *args: None)
++    simulator._config = SimpleNamespace(
++        enable_sequential_checkpoint_observer=False,
++    )
++    simulator._checkpoint_export_completed = False
++    simulator._sequential_event_loggers = None
++    simulator._trace_store = None
++    simulator._try_promote_terminal_pdaf_scheduler_work = lambda: False
++    simulator._write_output = lambda: pytest.fail(
++        "incomplete sequential run must not write successful output"
++    )
++
++    with pytest.raises(
++        RuntimeError,
++        match="drained its event queue before all requests completed",
++    ):
++        simulator._run_sequential()
++
++
++def test_scaled_memory_profile_rejects_unmodeled_tensor_parallel_layout() -> None:
++    replica = ReplicaConfig(
++        model_name="llama31_70b",
++        memory_precision_profile="w8a16-kv-bf16",
++        device="h200",
++        attn_tensor_parallel_size=2,
++        moe_tensor_parallel_size=1,
++        moe_expert_parallel_size=1,
++        num_pipeline_stages=1,
++        memory_margin_fraction=0.0,
++    )
++    with pytest.raises(ValueError, match="requires PP=TP=EP=1"):
++        ParamCounter(
++            replica,
++            ClusterType.MONOLITHIC,
++        ).get_weight_memory_ledger_per_device()
+diff --git a/tests/unit/test_operator_parity_golden_matrix.py b/tests/unit/test_operator_parity_golden_matrix.py
+index fc393c6336d6818bfc4da1fbad876ee4acc85828..62055a1b60e28d95aab388c8cdc5b03cb9696cb9 100644
+--- a/tests/unit/test_operator_parity_golden_matrix.py
++++ b/tests/unit/test_operator_parity_golden_matrix.py
+@@ -274,7 +274,7 @@ def test_step_moe_pinned_parallelism_is_memory_feasible_for_h800() -> None:
+     requested_memory = requested_memory_bytes_for_device(device="h800")
+ 
+     assert parameter_memory < requested_memory
+-    assert parameter_memory == 42963156992
++    assert parameter_memory == 43425736704
+     assert requested_memory == 77309411328
+ 
+ 
+diff --git a/tests/unit/test_param_counter_share_expert_memory_contract.py b/tests/unit/test_param_counter_share_expert_memory_contract.py
+index df83471fbdfecdd7d314f0629555595acbf408fc..59133a909a703dc02a420dd06518266aa9850d64 100644
+--- a/tests/unit/test_param_counter_share_expert_memory_contract.py
++++ b/tests/unit/test_param_counter_share_expert_memory_contract.py
+@@ -25,8 +25,8 @@ def test_qwen3_next_param_counter_excludes_shared_expert_from_system_metrics_mem
+ 
+     assert counter._get_share_expert_params_per_layer(tensor_parallel_size=1) == 0
+     assert counter.get_num_mlp_parameters_per_device() == 3_229_614_080
+-    assert counter.get_num_parameters_per_device() == 3_267_362_816
+-    assert 2 * counter.get_num_parameters_per_device() == 6_534_725_632
++    assert counter.get_num_parameters_per_device() == 3_906_499_584
++    assert 2 * counter.get_num_parameters_per_device() == 7_812_999_168
+ 
+ 
+ @pytest.mark.parametrize(
+@@ -48,8 +48,8 @@ def test_qwen3_next_param_counter_excludes_shared_expert_from_system_metrics_mem
+             2,
+             "step2_mini",
+             6_291_456,
+-            214_040_576,
+-            428_081_152,
++            345_982_976,
++            691_965_952,
+         ),
+         (
+             "step-moe-noquant-small",
+@@ -58,8 +58,8 @@ def test_qwen3_next_param_counter_excludes_shared_expert_from_system_metrics_mem
+             4,
+             "step3_text",
+             27_525_120,
+-            8_104_370_176,
+-            16_208_740_352,
++            8_335_660_032,
++            16_671_320_064,
+         ),
+     ],
+ )
+diff --git a/tests/unit/test_spec_decode_mtp_registry.py b/tests/unit/test_spec_decode_mtp_registry.py
+index 2762bf96addcfb9ceb1bceac7844dfc41750953a..b164a613e40554cdd63f1b6fafe1ede0c474579b 100644
+--- a/tests/unit/test_spec_decode_mtp_registry.py
++++ b/tests/unit/test_spec_decode_mtp_registry.py
+@@ -90,7 +90,8 @@ def _param_counter_for_spec_method(
+     method: str,
+     spec_model_name: str = "",
+ ):
+-    from frontier.types import ClusterType
++    from frontier.config.model_config import MemoryPrecisionConfig
++    from frontier.types import ClusterType, NormType
+     from frontier.utils.param_counter import ParamCounter
+ 
+     model_config = SimpleNamespace(
+@@ -100,10 +101,15 @@ def _param_counter_for_spec_method(
+         embedding_dim=16,
+         mlp_hidden_dim=32,
+         use_gated_mlp=True,
++        norm=NormType.RMS_NORM,
++        post_attn_norm=True,
+         is_moe=False,
+         vocab_size=64,
+         tie_word_embeddings=True,
+         get_head_dim=lambda: 4,
++        get_memory_precision_profile=lambda _profile: (
++            MemoryPrecisionConfig.native("float16")
++        ),
+     )
+     replica_config = SimpleNamespace(
+         model_name="unit-target-model",
