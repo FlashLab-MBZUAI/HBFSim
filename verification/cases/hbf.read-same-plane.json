@@ -1,0 +1,55 @@
+{
+  "schema": {
+    "name": "hbfsim.verification.case",
+    "version": 1
+  },
+  "case_id": "hbf.read-same-plane",
+  "model": "hbf",
+  "notes": [
+    "Each logical access first pays mapping_control_compute_ns as mapping_lookup_compute on the shared host compute pool (one worker per stack; equal starts prefer the most recently freed worker, idle since no earlier than the request arrival), then one ctrl_dram_issue_ns issue on host/mapping/partition{stack} whose entry transfer shares the HBM service-group calendars (hbm/group{N}).",
+    "A lookup publishes nothing."
+  ],
+  "comparison": {
+    "time_abs_tolerance_ns": 1e-09,
+    "time_rel_tolerance": 1e-12
+  },
+  "config": {
+    "stacks": 1,
+    "channels_per_stack": 1,
+    "dies_per_channel": 1,
+    "planes_per_die": 1,
+    "blocks_per_plane": 8,
+    "pages_per_block": 4,
+    "page_size_bytes": 4096,
+    "oob_bytes_per_page": 128,
+    "media_lanes_per_plane": 1,
+    "page_buffer_banks_per_plane": 1,
+    "auto_gc_enabled": false,
+    "gc_reserved_free_blocks_per_plane": 0
+  },
+  "initial_state": {
+    "prepopulate_lpns": [
+      0,
+      1
+    ]
+  },
+  "inspect_addresses": [],
+  "requests": [
+    {
+      "id": "plane0-page0",
+      "arrival_ns": 0.0,
+      "op": "read",
+      "address_space": "logical",
+      "addr": 0,
+      "bytes": 4096
+    },
+    {
+      "id": "plane0-page1",
+      "arrival_ns": 0.0,
+      "op": "read",
+      "address_space": "logical",
+      "addr": 4096,
+      "bytes": 4096
+    }
+  ]
+}

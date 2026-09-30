@@ -1,0 +1,15 @@
+{
+  "schema": {
+    "name": "hbfsim.evidence.external-normalized",
+    "version": 2
+  },
+  "tool_id": "mqsim",
+  "domain": "flash",
+  "case_id": "external.fixture.mqsim.direct-page-io",
+  "metrics": {
+    "data_read_bytes": 1536,
+    "data_write_bytes": 2560,
+    "data_page_reads": 3,
+    "data_page_programs": 5
+  }
+}

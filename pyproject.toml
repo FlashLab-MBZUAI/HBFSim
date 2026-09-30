@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hbfsim"
+version = "0.1.0"
+description = "Simulate HBM + high-bandwidth flash (HBF) memory systems: engine front door, transaction client, workload and report tools"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+dependencies = []
+keywords = ["high-bandwidth flash", "HBF", "HBM", "memory systems", "simulator", "FTL", "LLM serving"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: C++",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering",
+  "Topic :: System :: Hardware",
+]
+
+[project.optional-dependencies]
+analysis = ["numpy", "matplotlib", "reportlab>=4.4.3", "svglib>=1.6"]
+
+[project.urls]
+Homepage = "https://github.com/FlashLab-MBZUAI/HBFSim"
+Documentation = "https://github.com/FlashLab-MBZUAI/HBFSim/blob/main/docs/getting-started.md"
+Issues = "https://github.com/FlashLab-MBZUAI/HBFSim/issues"
+
+[tool.setuptools]
+include-package-data = false
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+  "hbfsim",
+  "hbfsim.*",
+  "hbfsim_client*",
+  "workloads*",
+  "reports*",
+  "verification*",
+  "evidence*",
+]
+exclude = ["tests*", "build*", "out*"]

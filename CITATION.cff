@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use HBFSim in your research, please cite it as below."
+type: software
+title: "HBFSim: a causal simulator for HBM + high-bandwidth flash memory systems under AI workloads"
+authors:
+  - name: "The HBFSim contributors"
+version: 0.1.0
+license: MIT
+repository-code: "https://github.com/FlashLab-MBZUAI/HBFSim"
+abstract: >-
+  HBFSim models timing, capacity, placement, data movement, flash translation,
+  garbage collection and wear for memory systems built from HBM, high-bandwidth
+  flash (HBF, OCP HBF v0.7.0) and external backing devices, driven by traces or
+  by explicit transaction DAGs from LLM-serving frontends. Every result carries
+  its source, configuration, executable and workload identity.
+keywords:
+  - high-bandwidth flash
+  - HBF
+  - HBM
+  - memory systems
+  - simulation
+  - flash translation layer
+  - LLM serving

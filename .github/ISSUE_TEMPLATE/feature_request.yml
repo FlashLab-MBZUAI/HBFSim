@@ -1,0 +1,33 @@
+name: Feature or model request
+description: Propose a new mechanism, configuration, workload, policy, or usability improvement.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What question are you trying to answer?
+      description: Describe the study or task this would enable, not only the feature.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What would you add or change? Which layer does it belong to (config, workload, Python policy, reference policy, physical model)?
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence and sources
+      description: |
+        For a new physical mechanism or parameter: the public source (specification, datasheet, paper)
+        and whether values are vendor-published, literature-derived, or exploratory assumptions.
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Would you like to work on it?
+      options:
+        - "Yes, I can open a pull request"
+        - "Maybe, with some guidance"
+        - "No"

@@ -1,0 +1,692 @@
+{
+  "schema": {
+    "name": "hbfsim.parameter-provenance",
+    "version": 4
+  },
+  "as_of": "2026-09-29",
+  "evidence_grades": {
+    "vendor_published": "Directly stated by a primary vendor source.",
+    "literature_derived": "Derived from a public design or paper; not a measured HBF product specification.",
+    "measured_calibration_with_exploratory_fallbacks": "Repository-local hardware measurements calibrate named platform overlays while generic profiles remain explicit exploratory fallbacks.",
+    "exploratory_assumption": "Chosen to close an unpublished specification or expose a sensitivity axis.",
+    "implementation_policy": "Defines simulator or composition behavior rather than a hardware fact.",
+    "standard_published": "Explicit normative or example value in the cited standard; example geometry is not mandatory."
+  },
+  "allowed_overlaps": {},
+  "model_policies": {
+    "hbm_address_mapping": {
+      "scheme": "pch-interleave-bg-rotate-v2",
+      "grade": "implementation_policy",
+      "notes": "An explicit legal interleave (automatic default 256 bytes in the full profile) rotates across stack/channel/pseudo-channel; local units rotate bank groups before columns, then banks and rows, with reversible high-bit swizzles. This is an implementation policy, not a JEDEC fact. The scheme id and resolved interleave are emitted in summaries."
+    },
+    "hbf_placement_mapping": {
+      "scheme": "page-striped-stack-local-mapping-v2",
+      "grade": "implementation_policy",
+      "notes": "Host-controlled page mapping and allocation. Full-resident or bounded cached mapping uses finite Host DRAM, with mapping metadata, write buffer, scratch and one 4 KiB GC copy slot per active stack sharing the budget. All copies cross the HBF interface. Raw-physical mode has no implicit logical image. Immutable static placement remains a distinct research use of physical addressing."
+    }
+  },
+  "sources": {
+    "sandisk_hbf_fact_sheet_2025": {
+      "title": "HBF Fact Sheet",
+      "publisher": "Sandisk",
+      "date": "2025-07",
+      "url": "https://documents.sandisk.com/content/dam/asset-library/en_us/assets/public/sandisk/collateral/company/Sandisk-HBF-Fact-Sheet.pdf"
+    },
+    "skhynix_hbf_fms_2026": {
+      "title": "SK hynix Unveils First HBF Standard Specifications with Sandisk, Presenting AI Memory Solutions at FMS 2026",
+      "publisher": "SK hynix",
+      "date": "2026-08-04",
+      "url": "https://news.skhynix.com/en/hbf-at-fms-2026/"
+    },
+    "sandisk_skhynix_hbf_ocp_2026": {
+      "title": "Sandisk and SK hynix Advance Global Standardization of High Bandwidth Flash with Release of First OCP Technical Specification",
+      "publisher": "Sandisk and SK hynix (distributed by Business Wire)",
+      "date": "2026-08-03",
+      "url": "https://www.businesswire.com/news/home/20260803297696/en/Sandisk-and-SK-hynix-Advance-Global-Standardization-of-High-Bandwidth-Flash-with-Release-of-First-OCP-Technical-Specification"
+    },
+    "ocp_semi_private_workstreams": {
+      "title": "Semi-Private Workstreams",
+      "publisher": "Open Compute Project",
+      "checked_on": "2026-08-29",
+      "url": "https://www.opencompute.org/index.php/community/semi-private-workstreams"
+    },
+    "ocp_contributions_catalog": {
+      "title": "Contributions",
+      "publisher": "Open Compute Project",
+      "checked_on": "2026-08-29",
+      "url": "https://www.opencompute.org/contributions"
+    },
+    "kioxia_xl_flash": {
+      "title": "XL-FLASH Storage Class Memory",
+      "publisher": "KIOXIA",
+      "url": "https://americas.kioxia.com/en-us/business/memory/xlflash.html"
+    },
+    "kaist_tcad_2026_0452": {
+      "title": "Design and Analysis of GPU-HBM-HBF Architecture for Long-Context LLM Inference Considering Workload Characteristics and Signal/Power Integrity",
+      "publisher": "IEEE TCAD manuscript proof supplied by the user",
+      "url": null,
+      "status": "manuscript identifier TCAD-2026-0452; independently verify the final bibliographic record before publication"
+    },
+    "cadence_hbm4_evolution": {
+      "title": "High-Bandwidth Memory Evolution from First-Generation HBM to the Latest HBM4",
+      "publisher": "Cadence",
+      "url": "https://community.cadence.com/cadence_blogs_8/b/fv/posts/high-bandwidth-memory-evolution-from-first-generation-hbm-to-the-latest-hbm4"
+    },
+    "cadence_hbm4_performance": {
+      "title": "HBM4 Boosts Memory Performance for AI Training",
+      "publisher": "Cadence",
+      "url": "https://community.cadence.com/cadence_blogs_8/b/ip/posts/hbm4-boosts-memory-performance-for-ai-training"
+    },
+    "cadence_hbm4_vip": {
+      "title": "Simulation VIP for HBM4",
+      "publisher": "Cadence",
+      "checked_on": "2026-09-12",
+      "url": "https://login.cadence.com/content/cadence-www/global/en_US/home/tools/system-design-and-verification/verification-ip/simulation-vip/memory-models/dram/hbm4.html",
+      "status": "Public IP feature page lists a 2000 MHz / 8 Gb/s example; not the normative JESD270-4 timing tables."
+    },
+    "synopsys_hbm4_controller": {
+      "title": "DesignWare HBM4/4E Controller IP",
+      "publisher": "Synopsys",
+      "url": "https://www.synopsys.com/designware-ip/interface-ip/hbm/hbm4-controller.html"
+    },
+    "micron_hbm_tccd_application": {
+      "title": "US20250356904A1: Tccd specification for scaling bandwidth on high bandwidth memory devices",
+      "publisher": "Micron Technology, Inc.",
+      "status": "published patent application; used as a related-art example, not a normative HBM4 speed-bin table",
+      "url": "https://patents.google.com/patent/US20250356904A1/en"
+    },
+    "micron_hbm4_product": {
+      "title": "Micron HBM4",
+      "publisher": "Micron Technology, Inc.",
+      "url": "https://www.micron.com/products/memory/hbm/hbm4"
+    },
+    "cxl_specification_4_0": {
+      "title": "Compute Express Link Specification Revision 4.0 Evaluation Copy",
+      "publisher": "Compute Express Link Consortium",
+      "date": "2026-02-26",
+      "url": "https://computeexpresslink.org/wp-content/uploads/2026/02/CXL-Specification_rev4p0_ver1p0_2026February26_clean_evalcopy_v2.pdf"
+    },
+    "nvme_base_specification_2_1": {
+      "title": "NVM Express Base Specification Revision 2.1",
+      "publisher": "NVM Express, Inc.",
+      "date": "2024-08-05",
+      "url": "https://nvmexpress.org/wp-content/uploads/NVM-Express-Base-Specification-Revision-2.1-2024.08.05-Ratified.pdf"
+    },
+    "dana_a100_offload_2026_08_29": {
+      "title": "DANA A100 pinned-host and compute-local NVMe offload calibration",
+      "publisher": "HBFSim repository-local Slurm measurement",
+      "date": "2026-08-29",
+      "status": "Three complete gpu-51 jobs (188541, 188542, 188543); immutable aggregate and per-source SHA-256 records are under evidence/hardware/dana_a100_offload/calibration"
+    },
+    "h200_nvl_host_link_2026_09_23": {
+      "title": "H200 NVL PCIe Gen5 x16 GPU <-> pinned host DRAM copy measurement",
+      "publisher": "HBFSim repository-local CUDA driver-API measurement",
+      "date": "2026-09-23",
+      "status": "Three pooled runs under evidence/hardware/host_link/results/h200-nvl-pcie5 fitted by evidence/hardware/host_link/fit.py with the DANA offload method (median per direction/block point); no held-out run, so the overlay is a timing envelope rather than an L4 calibration"
+    },
+    "micron_cz120_cxl": {
+      "title": "Micron Launches Memory Expansion Module Portfolio to Accelerate CXL Adoption",
+      "publisher": "Micron Technology, Inc.",
+      "url": "https://investors.micron.com/news-releases/news-release-details/micron-launches-memory-expansion-module-portfolio-accelerate-cxl"
+    },
+    "kioxia_cm7v_nvme": {
+      "title": "CM7-V Series Enterprise NVMe SSD",
+      "publisher": "KIOXIA America, Inc.",
+      "url": "https://americas.kioxia.com/en-us/business/ssd/enterprise-ssd/cm7-v.html"
+    },
+    "cylon_fast26_cxlssd": {
+      "title": "Cylon: Fast and Accurate Full-System Emulation of CXL-SSDs",
+      "publisher": "USENIX FAST '26",
+      "date": "2026-02",
+      "url": "https://www.usenix.org/conference/fast26/presentation/yoon"
+    },
+    "moatlab_cylon_artifact": {
+      "title": "MoatLab Cylon FAST '26 artifact; NAND timing enums (read 40 us, program 200 us, erase 2 ms) in CylonFEMU/hw/femu/bbssd/ftl.h and the black-box SSD geometry defaults (512 B x 8-sector page, 256 pages/block, 8 LUNs/channel, 8 channels) documented in ftl.c/femu.c",
+      "publisher": "MoatLab, Virginia Tech",
+      "url": "https://github.com/MoatLab/Cylon"
+    },
+    "hotinfra_2026_hbf_lpddr": {
+      "title": "Is High-Bandwidth Flash All You Need?",
+      "publisher": "HotInfra '26",
+      "date": "2026-06-28",
+      "url": "https://hotinfra.org/2026/papers/hotinfra26-final83.pdf"
+    },
+    "arxiv_hbf_sucks_2026": {
+      "title": "HBF Sucks? A Full-Stack Characterization of High-Bandwidth Flash for KV-Centric LLM Serving",
+      "publisher": "arXiv 2608.11668",
+      "date": "2026-08",
+      "url": "https://arxiv.org/abs/2608.11668"
+    },
+    "supermicro_gb200_nvl72_datasheet": {
+      "title": "Supermicro NVIDIA GB200 NVL72 SuperCluster Datasheet (liquid-cooling envelope: maximum liquid inlet 45 C, maximum liquid return 65 C)",
+      "publisher": "Supermicro",
+      "date": "2025",
+      "url": "https://www.supermicro.com/datasheet/datasheet_SuperCluster_GB200_NVL72.pdf"
+    },
+    "dcx_45c_warm_water_cdu_2026": {
+      "title": "DCX Liquid Cooling Systems Announces New 8MW Coolant Distribution Unit Optimized for 45C Warm Water Cooling in Next Gen NVIDIA Vera Rubin AI Deployments",
+      "publisher": "DCX (Business Wire)",
+      "date": "2026-01-23",
+      "url": "https://businesswire.com/news/home/20260123068139/en/DCX-Liquid-Cooling-Systems-Announces-New-8MW-Coolant-Distribution-Unit-Optimized-for-45C-Warm-Water-Cooling-in-Next-Gen-NVIDIA-Vera-Rubin-AI-Deployments"
+    },
+    "ocp_hbf_0_7_0": {
+      "title": "OCP HBF Architecture Specification v0.7.0, section 11.4, Figure 46",
+      "publisher": "Open Compute Project",
+      "date": "2026-08-03",
+      "url": "https://www.opencompute.org/documents/ocp-hbf-architecture-specification-v0-7-0-final-pdf"
+    },
+    "ocp_hbf_v070": {
+      "title": "High-Level Base Die Specification v0.7.0 (130 pages)",
+      "publisher": "Open Compute Project",
+      "date": "2026-08-03",
+      "url": "https://www.opencompute.org/documents/ocp-hbf-architecture-specification-v0-7-0-final-pdf",
+      "sha256": "307531eb8053f00cbeccbc907ddff0a9c4fe6f9d0066a077ce33b0ac99312da3",
+      "bytes": 4673742,
+      "pages": 130
+    },
+    "jedec_hbm4_2025": {
+      "title": "JEDEC Publishes New HBM4 Standard",
+      "publisher": "JEDEC (distributed by Business Wire)",
+      "date": "2025-04-16",
+      "url": "https://www.businesswire.com/news/home/20250416843598/en/JEDEC-and-Industry-Leaders-Collaborate-to-Release-JESD270-4-HBM4-Standard-Advancing-Bandwidth-Efficiency-and-Capacity-for-AI-and-HPC"
+    },
+    "synopsys_hbm_vip": {
+      "title": "HBM Verification IP \u2014 JESD270-4 rev 1.0",
+      "publisher": "Synopsys",
+      "url": "https://www.synopsys.com/verification/verification-ip/memory/hbm-verificationip.html"
+    },
+    "synopsys_hbm4_phy": {
+      "title": "HBM4 PHY IP",
+      "publisher": "Synopsys",
+      "url": "https://www.synopsys.com/designware-ip/interface-ip/hbm/hbm4-phy.html"
+    }
+  },
+  "disclosures": {
+    "ocp_hbf_v070": {
+      "source": "ocp_hbf_v070",
+      "artifact_status": "retrieved_and_page_count_verified",
+      "revision": "0.7.0",
+      "pages": 130,
+      "bandwidth_basis": "p16 Tables 2 and 4: x64 * lane_GT/s / 8 * 0.75",
+      "grades": {
+        "1": {
+          "maximum_channels": 8,
+          "maximum_dies": 8,
+          "lane_GTps": 8,
+          "payload_GBps_per_channel": 48,
+          "payload_GBps_per_stack": 384
+        },
+        "2": {
+          "maximum_channels": 16,
+          "maximum_dies": 16,
+          "lane_GTps": 16,
+          "payload_GBps_per_channel": 96,
+          "payload_GBps_per_stack": 1536
+        },
+        "3": {
+          "maximum_channels": 16,
+          "maximum_dies": 16,
+          "lane_GTps": 32,
+          "payload_GBps_per_channel": 192,
+          "payload_GBps_per_stack": 3072
+        }
+      },
+      "known_discrepancy": "pp32/35 specify 94/188 GB/s per module, inconsistent with p16 values 96/192. No erratum obtained. The model selects p16 and does not hide this uncertainty.",
+      "software_boundary": "p117 section11.4: no device GC or copyback. Host page mapping/GC and optional invalid-zone WL are policies, not compulsory standard algorithms.",
+      "model_scope": "Page-transaction performance model with timed channel-write batches: 64B fragment coverage, per-channel page credits, overlap/order errors, accumulation timeout and per-command nonposted completion. Batches drain at their boundary. Mixed read/write fragment streams, scratchpad writes, UCIe packet/flit/CRC/replay, AXI-ID reordering, MMIO/IEEE1500, fault injection, read-disturb/retention and full thermal state machine are not implemented."
+    },
+    "hbm4": {
+      "revision": "JESD270-4 April2025, cited by HBF p9",
+      "source": "jedec_hbm4_2025",
+      "full_normative_timing_tables_obtained": false,
+      "boundary": "Public primary evidence binds 32 channels, two pseudochannels, 2048 DQ and 8 Gb/s baseline. Internal timing, refresh intervals and controller scheduling remain explicit assumptions. HBF grade is independent of HBM generation."
+    }
+  },
+  "parameters": [
+    {
+      "config_keys": [
+        "hbf-read-ns"
+      ],
+      "profile_value": 4000,
+      "unit": "ns",
+      "grade": "exploratory_assumption",
+      "source": null,
+      "sensitivity": [
+        2000,
+        4000,
+        8000
+      ],
+      "notes": "Current shared NAND array-read assumption: 4 us in all system and miniquick profiles and Q3 controls. Command, ECC and transfer stages remain separate. This is a study parameter, not an OCP timing requirement or measured product latency."
+    },
+    {
+      "config_keys": [
+        "hbf-program-ns"
+      ],
+      "profile_value": 75000,
+      "unit": "ns",
+      "grade": "exploratory_assumption",
+      "source": null,
+      "sensitivity": [
+        37500,
+        75000,
+        150000
+      ],
+      "notes": "Current shared complete NAND page-program assumption: 75 us including internal verification. One non-preemptible program interval determines array occupancy, program work and media completion. No additional verification parameter, delay or counter is modeled. Command/data transfer and page-zero autoerase remain separate. This is a study parameter, not an OCP timing requirement or measured product latency."
+    },
+    {
+      "config_keys": [
+        "hbf-ecc-decode-latency-ns",
+        "hbf-ecc-encode-latency-ns"
+      ],
+      "profile_value": "250 in every eight-stack composition profile under configs/systems",
+      "unit": "ns response latency",
+      "grade": "exploratory_assumption",
+      "source": "kaist_tcad_2026_0452",
+      "sensitivity": [
+        250,
+        500,
+        1000
+      ],
+      "notes": "The paper reports only a 0.29 us aggregate on-chip read latency, not an ECC-only value. Every composition topology point uses 250 ns as a common calibration residual: together with HBFSim's explicit command and transfer stages it yields a 1283.77 ns uncontended page read, close to the paper's 1.29 us. This is not a measured ECC latency. HBFSim requires the response latency to cover the raw-codeword initiation interval."
+    },
+    {
+      "config_keys": [
+        "hbf-ecc-decode-raw-bw"
+      ],
+      "profile_value": "16-die FMS range overlays: 26.3671875 and 197.75390625 GB/s per die; 16-die first-generation use cases: 105.46875; cost-unbounded output upper bound: 552.96; 8-die server sensitivities: 135",
+      "unit": "raw codeword GB/s per die",
+      "grade": "exploratory_assumption",
+      "sources": [
+        "sandisk_hbf_fact_sheet_2025",
+        "sandisk_skhynix_hbf_ocp_2026",
+        "skhynix_hbf_fms_2026"
+      ],
+      "notes": "The vendors publish only aggregate stack bandwidth targets/range, not ECC topology or throughput. Values provision each profile's assumed die count so aggregate payload throughput, after 4096 B + 224 B codeword overhead, matches its modeled HBIO read target. The 400/3000 GB/s endpoint values divide the corresponding 421.875/3164.0625 raw GB/s across sixteen assumed die issue ports. The 552.96 GB/s upper-bound value is derived from 8847.36 raw GB/s divided over sixteen ports. These are compatibility bounds, not ECC measurements or grade definitions."
+    },
+    {
+      "config_keys": [
+        "hbf-ecc-encode-raw-bw"
+      ],
+      "profile_value": "equal to decode raw bandwidth in every profile, including the FMS 2026 endpoint overlays and the cost-unbounded output upper bound",
+      "unit": "raw codeword GB/s per die",
+      "grade": "exploratory_assumption",
+      "source": null,
+      "notes": "No public HBF write-side ECC throughput is available. Equal encode/decode provisioning is a symmetric baseline assumption; NAND program timing normally dominates writes and the parameter must be swept for write-path studies."
+    },
+    {
+      "config_keys": [
+        "hbf-erase-ns"
+      ],
+      "profile_value": 2000000,
+      "unit": "ns",
+      "grade": "exploratory_assumption",
+      "source": null,
+      "notes": "No public HBF source currently supports the exact value."
+    },
+    {
+      "config_keys": [
+        "base-die-link-read-bw",
+        "base-die-link-write-bw",
+        "base-die-link-latency-ns"
+      ],
+      "profile_value": "composition profiles: 2048 GB/s read, 512 GB/s write, 0 ns added fixed latency; server profiles: see resolved config",
+      "unit": "per HBF stack",
+      "grade": "literature_derived",
+      "source": "kaist_tcad_2026_0452",
+      "notes": "The TCAD design supplies the composition 2048/512 GB/s bandwidth point but does not state a separate fixed D2D latency, so the paper-oriented profiles add 0 ns. Sandisk's public fact sheet states 1.6 TB/s first-generation HBF stack read bandwidth, but it does not publish a separate HBM-to-HBF/HBF-to-HBM D2D bandwidth or latency; 1.6 TB/s must not be relabeled as a D2D measurement. Server profiles are independent exploratory sensitivities. This is not a vendor-measured HBF interface."
+    },
+    {
+      "config_keys": [
+        "hbf-external-direct-link-enable",
+        "hbf-external-direct-link-read-bw",
+        "hbf-external-direct-link-write-bw",
+        "hbf-external-direct-link-latency-ns"
+      ],
+      "profile_value": "Absent unless enabled. overlays/hbf/external-direct-lane.cfg declares 32 GB/s read (HBF-to-external offload direction), 32 GB/s write (external-to-HBF restore direction), 100 ns fixed latency",
+      "unit": "per HBF stack",
+      "grade": "exploratory_assumption",
+      "source": null,
+      "notes": "Direct lane between each HBF stack's base die and the external backing device, bypassing HBM staging. It is opt-in: no lane exists unless hbf-external-direct-link-enable=true is declared together with a complete bandwidth/latency envelope, and the simulation session instantiates it only when both the HBF and external tiers are enabled. It carries only the DIRECT_HBF_TO_EXTERNAL/DIRECT_EXTERNAL_TO_HBF transport stages of an explicitly chained migration; the HBF and external device work remain separate transactions, and the external device still charges its own host-link, controller, and media costs, so the lane never double-counts them. No public source describes such a package-exit lane; the overlay's bandwidth and latency values are exploratory envelopes pending calibration."
+    },
+    {
+      "config_keys": [
+        "hbm-channel-row-size-bytes"
+      ],
+      "profile_value": 2048,
+      "unit": "bytes per full channel row",
+      "grade": "exploratory_assumption",
+      "source": null,
+      "notes": "The model divides this evenly across pseudo-channels, giving 1 KiB per pseudo-channel when two pseudo-channels are enabled. HBM4 product pages do not publish a complete row mapping for this profile."
+    },
+    {
+      "config_keys": [
+        "hbm-address-mapping-ns"
+      ],
+      "profile_value": "0 ns address-map delay",
+      "unit": "ns",
+      "grade": "exploratory_assumption",
+      "source": null,
+      "notes": "Optional fixed address-mapping latency in the aggregate HBM model; an implementation assumption, not a JEDEC command timing."
+    },
+    {
+      "config_keys": [
+        "hbf-gc-low-watermark-pages",
+        "hbf-gc-hard-watermark-pages",
+        "hbf-gc-reserved-free-blocks-per-plane",
+        "hbf-gc-wear-leveling-weight",
+        "hbf-static-wear-leveling-erase-gap"
+      ],
+      "profile_value": "see resolved scenario config; static wear leveling off (erase gap 0) unless a study enables it",
+      "unit": "mixed",
+      "grade": "implementation_policy",
+      "source": null,
+      "notes": "Host software GC policy and reserve settings; not published media parameters or a base-die GC engine. Live copies use the modeled host roundtrip. hbf-static-wear-leveling-erase-gap relocates the stack's coldest closed block into a worn block once its erase-count gap reaches the value (0 disables); the copy crosses the HBF interface like GC. Requires workload sensitivity analysis."
+    },
+    {
+      "config_keys": [
+        "hbf-write-coalescing",
+        "hbf-write-buffer-completion-requires-flush"
+      ],
+      "profile_value": "coalescing enabled; acknowledgement before flush",
+      "unit": "boolean",
+      "grade": "implementation_policy",
+      "source": null,
+      "notes": "Controller acknowledgement and volatile coalescing semantics. Experiments must report these choices because they change burst latency and the separation between user completion and drain makespan."
+    },
+    {
+      "config_keys": [
+        "hbf-initial-free-blocks-erased"
+      ],
+      "profile_value": "false (OCP page-zero auto erase on every first program)",
+      "unit": "boolean",
+      "grade": "implementation_policy",
+      "source": null,
+      "notes": "Snapshot precondition: never-programmed blocks of a freshly installed image are already erased, as in a controller's pre-erased free pool, so their first page-zero program pays no erase or P/E cycle; reclaimed blocks still auto-erase. Decode-snapshot comparisons enable it for every cell; lifetime studies keep it off, and persistent images refuse unconsumed pre-erased blocks."
+    },
+    {
+      "config_keys": [
+        "external-backing-kind",
+        "external-backing-capacity-bytes",
+        "external-backing-page-size",
+        "external-backing-request-segment-bytes",
+        "external-backing-media-channels",
+        "external-backing-media-read-queues",
+        "external-backing-media-write-queues",
+        "external-backing-max-outstanding-requests",
+        "external-backing-controller-issue-ns",
+        "external-backing-controller-processing-ns",
+        "external-backing-media-read-latency-ns",
+        "external-backing-media-write-latency-ns",
+        "external-backing-media-read-bw",
+        "external-backing-media-write-bw",
+        "external-backing-m2s-bw",
+        "external-backing-s2m-bw",
+        "external-backing-one-way-propagation-ns",
+        "external-backing-command-bytes",
+        "external-backing-completion-bytes",
+        "external-backing-cache-enabled",
+        "external-backing-cache-capacity-bytes",
+        "external-backing-cache-ways",
+        "external-backing-cache-policy",
+        "external-backing-cache-prefetch-degree",
+        "external-backing-cache-prefetch-stride",
+        "external-backing-cache-hit-latency-ns",
+        "external-backing-cache-hit-bw"
+      ],
+      "profile_value": "Generic LPDDR/host-DRAM/CXL/NVMe/CXL-SSD profiles retain their documented exploratory values. The cxl-ssd profile models the Cylon (FAST '26) CXL.mem-over-NAND device class: it reuses the cxl-memory transport envelope (36/36 GB/s M2S/S2M, 75 ns propagation, 64/16 B records) and the NVMe FTL-class controller timing (20/500 ns issue/process), and takes its media point from the Cylon artifact's FEMU black-box SSD defaults - 4 KiB NAND page, 8 channels x 8 LUNs, 40 us page read, 200 us page program, with aggregate directional media bandwidth as the geometry envelope 64 LUNs x 4 KiB / latency = 6.5536/1.31072 GB/s read/write. The base cxl-ssd profile is the uncached miss path with GC excluded. The device-side DRAM cache is a separate explicit block (external-backing-cache-*), disabled by default and valid only for kind cxl-ssd: the cxl-ssd-cached overlay follows the Cylon artifact README's documented launch configuration - buffer capacity bufsz = flash/20 (2 TiB / 20 rounded down to a whole 4 KiB segment = 109951160320 B), default replacement FIFO from the artifact's policy set {LIFO, FIFO, S3FIFO, CLOCK}, prefetch degree 0 (prf_dg default), and buffer-port hit timing reusing the cxl-memory DRAM media envelope (90 ns / 204.8 GB/s). Full associativity is a declared modeling simplification of the artifact's set-associative buffer, and the write-back gating and background-fill scheduling rules are declared model choices, not artifact measurements. DANA gpu-51 calibrated timing overlays use 4 KiB pages, 512 credits, one channel per queue, 5100.435455322266/28375.26073026073 ns controller issue/process, 25.596644558615655/23.07758806058801 GB/s M2S/S2M, and 64/16 B records. Host DRAM uses a 16 MiB segment, one read/write queue, and non-binding media. NVMe uses 128 KiB segments, one effective read queue and one effective write queue, 2.847090205168068/2.553624737252157 GB/s aggregate read/write media, and 9673.874459157763/10523.54686189563 ns read/write media latency.",
+      "unit": "mixed",
+      "grade": "measured_calibration_with_exploratory_fallbacks",
+      "sources": [
+        "hotinfra_2026_hbf_lpddr",
+        "cxl_specification_4_0",
+        "nvme_base_specification_2_1",
+        "micron_cz120_cxl",
+        "kioxia_cm7v_nvme",
+        "cylon_fast26_cxlssd",
+        "moatlab_cylon_artifact",
+        "dana_a100_offload_2026_08_29",
+        "h200_nvl_host_link_2026_09_23"
+      ],
+      "notes": "The cxl-ssd media latency and geometry points are the Cylon artifact's FEMU defaults, not measurements of a shipping CXL-SSD; its 2 TiB capacity is an exploratory flash-class assumption (Cylon's emulated capacity is host-DRAM-bound and anchors nothing), and the derived aggregate media bandwidth assumes fully pipelined LUNs with no GC, plane, or cache effects. HotInfra anchors only the on-package LPDDR capacity/read-bandwidth/latency point; generic host DRAM, CXL, and NVMe values remain reproducible sensitivities rather than product claims. The DANA overlays are a narrow L4 calibration for gpu-51 physical GPU 2's A100 CUDA-pinned-host path and compute-local XFS/LVM/md/NVMe stack with one visible Intel NVMe leaf. Jobs 188541/188542 are fit inputs and untouched job 188543 is the independent 16 MiB QD1/QD8 holdout. All predictions replay the compiled range/segment/queue mechanism. The holdout median absolute throughput/p50 errors are 1.337%/2.988%, maxima are 8.833%/14.569%, and saturated-read QD8 maxima are 1.153%/1.543%; the workload-applicability gate passes. The effective queue counts are selected from fit-run QD8/QD1 scaling and model observed caller-range concurrency; they are not literal NVMe submission-queue counts. Other sizes, capacity, portability, and unqualified hardware or paper-performance claims remain outside scope. The h200-nvl-host-dram-timing overlay applies the same fit to three pooled H200 NVL PCIe Gen5 runs without a held-out run; it is a measured timing envelope for that platform, not an L4 calibration."
+    },
+    {
+      "config_keys": [
+        "layer-buffer-bytes",
+        "hbf-hbm-write-buffer-bytes",
+        "hbf-hbm-write-buffer-destage-watermark",
+        "flat-hbm-bytes",
+        "static-direct-hbm-bytes"
+      ],
+      "profile_value": "see resolved scenario config",
+      "unit": "mixed",
+      "grade": "implementation_policy",
+      "source": null,
+      "notes": "Composition policy knobs; report them as evaluated mechanisms, not hardware facts. layer-buffer-bytes is the upper bound for one hbf-streaming layer buffer. Runtime sizes both parity buffers to the actual maximum per-layer model/KV data footprint; only scratch and metadata remain permanently HBM-resident, and the configured maximum is not statically reserved. hbf-hbm-write-buffer-destage-watermark (fraction of hbf-hbm-write-buffer-bytes, default 0.5) is the cooperative staging region's background-destage high watermark: once the full-page slots whose destage has not started exceed it, the oldest are destaged during the run instead of only under slot pressure or in the end-of-run drain."
+    },
+    {
+      "config_keys": [
+        "hbf-standard",
+        "hbf-speed-grade",
+        "hbf-processor-interconnect"
+      ],
+      "profile_value": "OCP-HBF-0.7.0-2026-08-03; grade2 default; UCIe3.0 x64",
+      "unit": "mixed; values name their units",
+      "grade": "standard_published",
+      "notes": "Grade limits and per-channel payload bandwidth follow p16. RX and TX are independent for each channel. The 75% efficiency is applied once. UCIe framing itself is outside the model.",
+      "source": "ocp_hbf_v070"
+    },
+    {
+      "config_keys": [
+        "hbf-page-size"
+      ],
+      "profile_value": "4096 B",
+      "unit": "mixed; values name their units",
+      "grade": "standard_published",
+      "notes": "p56-59: complete 4KiB NAND programs; interface fragments and read bursts align to 64B. The device bank retains two decoded pages. Writes append without skipped pages; page0 automatically erases; write response follows program completion.",
+      "source": "ocp_hbf_v070"
+    },
+    {
+      "config_keys": [
+        "hbf-stacks",
+        "hbf-channels",
+        "hbf-dies-per-channel",
+        "hbf-planes-per-die",
+        "hbf-blocks-per-plane",
+        "hbf-capacity-ratio",
+        "hbf-pages-per-block"
+      ],
+      "profile_value": "default per stack: 16 channels x 1 die x 16 banks x 2048 blocks x 256 pages = 512 GiB",
+      "unit": "mixed; values name their units",
+      "grade": "exploratory_assumption",
+      "notes": "The p16 Table3 example is 512GiB/16dies/16banks per channel. One die per channel, block geometry and topology capacity are explicit product/composition choices within grade limits. Miniquick scales block count to 50GiB, not a shipping SKU.",
+      "source": "ocp_hbf_v070"
+    },
+    {
+      "config_keys": [
+        "hbf-media-lanes-per-plane",
+        "hbf-page-buffer-banks-per-plane",
+        "hbf-channel-bw",
+        "hbf-tsv-bw",
+        "hbf-media-lane-bw",
+        "hbf-logic-sram-bw",
+        "hbf-page-buffer-bw",
+        "hbf-flash-tsu-issue-ns",
+        "hbf-logic-scheduler-issue-ns"
+      ],
+      "profile_value": "1 ordered NAND sense engine per bank; 1 raw lane; 2 raw staging buffers; channel101.25GB/s; TSV1644GB/s; internal staging2048GB/s",
+      "unit": "mixed; values name their units",
+      "grade": "exploratory_assumption",
+      "notes": "Product-specific internal capacities and latency. Ordered bank sensing follows p56. Raw OOB transfers are separate from decoded 96GB/s grade2 payload. Faster link grades do not automatically raise NAND/ECC/TSV supply."
+    },
+    {
+      "config_keys": [
+        "hbm-standard",
+        "hbm-channels",
+        "hbm-pseudo-channels",
+        "hbm-channel-width-bits",
+        "hbm-pin-rate-gbps"
+      ],
+      "profile_value": "JESD270-4-2025-04; 32 x 64-bit channels; 2 pseudochannels/channel; 8Gb/s; 2048GB/s per stack",
+      "unit": "mixed; values name their units",
+      "grade": "vendor_published",
+      "notes": "HBM4 interface organization from public documentation; raw bandwidth is width times pin rate. Effective service uses the explicitly declared channel-model efficiency.",
+      "source": "jedec_hbm4_2025"
+    },
+    {
+      "config_keys": [
+        "hbm-bank-groups-per-pseudo-channel",
+        "hbm-banks-per-group"
+      ],
+      "profile_value": "16 x 4 = 64 banks per pseudochannel",
+      "unit": "mixed; values name their units",
+      "grade": "vendor_published",
+      "notes": "Synopsys HBM4 verification IP organization; not inferred from HBF grade.",
+      "source": "synopsys_hbm_vip"
+    },
+    {
+      "config_keys": [
+        "hbm-capacity-bytes",
+        "hbm-stacks"
+      ],
+      "profile_value": "48GiB/stack default; eight-slot complete-topology experiments; explicitly scaled miniquick capacities",
+      "unit": "mixed; values name their units",
+      "grade": "exploratory_assumption",
+      "notes": "System capacity and stack count are composition assumptions, not fixed by JESD270-4. The 48 GiB choice is compatible in capacity with 16 x 24 Gib dies (or 12 x 32 Gib), but no die-height, density-specific timing, SID or thermal model is implemented. Standard support up to 64 GB does not require every HBM4 stack to use 64 GB. Full profiles use 51,539,607,552 capacity bytes per stack; small/server sensitivity profiles are separately labeled.",
+      "source": "jedec_hbm4_2025"
+    },
+    {
+      "config_keys": [
+        "hbm-burst-length",
+        "hbm-data-rate-per-command-clock"
+      ],
+      "profile_value": "BL8; DQ-to-accounting-clock ratio 4",
+      "unit": "mixed; values name their units",
+      "grade": "exploratory_assumption",
+      "notes": "Burst rounding and integer calendar grid are model assumptions. The current HBM model does not issue JEDEC commands or claim complete timing-table conformance.",
+      "source": "cadence_hbm4_vip"
+    },
+    {
+      "config_keys": [
+        "hbf-device-dram-capacity-denominator",
+        "hbf-device-dram-hit-latency-ns",
+        "hbf-device-dram-bw",
+        "hbf-device-dram-policy"
+      ],
+      "profile_value": "disabled by default (denominator 0); studies that enable it use 1/1000 of raw flash pages per HBF stack, 90 ns hit latency, 204.8 GB/s per stack, LRU",
+      "unit": "mixed; values name their units",
+      "grade": "exploratory_assumption",
+      "sources": [
+        "cylon_fast26_cxlssd",
+        "moatlab_cylon_artifact"
+      ],
+      "notes": "On-device DRAM of each HBF stack, sized like a NAND SSD's DRAM (about 1 byte per 1,000 flash bytes is the conventional SSD ratio; exploratory for HBF). It is separate from the HBM controller reservation: it holds the write buffer (hbf-write-buffer-pages per stack; a write completes on entry unless completion requires the flush, and its payload crosses HBIO once, at staging) and uses the remaining pages as a clean read cache of physical NAND pages (write-allocate on flush, purged on invalidation, relocation and erase). Hit timing reuses the cxl-ssd-cached overlay's device-DRAM buffer-port envelope (90 ns / 204.8 GB/s), itself the cxl-memory DRAM media envelope; it is not an HBF measurement. Full associativity and a single port per stack are model simplifications. Physical-address probes bypass the cache."
+    },
+    {
+      "config_keys": [
+        "hbf-page-read-queue-depth-per-stack",
+        "hbf-write-buffer-pages",
+        "hbf-write-buffer-flush-threshold-pages",
+        "hbf-mapping-mode",
+        "hbf-ctrl-dram-bytes",
+        "hbf-ctrl-dram-capacity-denominator",
+        "hbf-ctrl-dram-latency-ns",
+        "hbf-ctrl-dram-issue-ns",
+        "hbf-oob-bytes"
+      ],
+      "profile_value": "4096 outstanding page reads/stack; HBM controller-buffer response100ns, issue1ns; OOB224B",
+      "unit": "mixed; values name their units",
+      "grade": "exploratory_assumption",
+      "notes": "Finite controller storage reserves physical HBM capacity for mapping, write data and copy slots. Buffer traffic shares HBM pseudo-channel data calendars; bandwidth follows the configured HBM interface. This is a channel-level buffer model with explicit per-stack latency/issue assumptions, not expanded DRAM row commands or an OCP requirement. No CPU DDR or independent payload-memory port is added. Decoded device cache is always two pages per bank; no pooled-cache override."
+    },
+    {
+      "config_keys": [
+        "hbf-logical-capacity-bytes"
+      ],
+      "profile_value": "0 (derived) in published profiles; 25165824 B (24 MiB of 32 MiB physical) in tests/fixtures/mapping-organizations/base.cfg",
+      "unit": "bytes; a multiple of hbf-page-size",
+      "grade": "exploratory_assumption",
+      "notes": "Host-exposed logical capacity of the HBF. 0 lets HbfController::derive_logical_capacity_pages pick the largest logical image that still guarantees a GC victim (usable blocks beyond the per-plane reserve minus the open frontiers). A positive value pins a smaller image, i.e. an explicit over-provisioning ratio; the engine rejects a value that exceeds the derived maximum. The mapping-organizations study fixes it so every organization is compared at the same logical size. Not an OCP requirement."
+    },
+    {
+      "config_keys": [
+        "hbf-mapping-organization",
+        "hbf-mapping-log-blocks",
+        "hbf-mapping-superblock-planes"
+      ],
+      "profile_value": "page by default; block, bounded dedicated block-log, primary extent, and object-segment alternatives; 4 active logs by default; superblock of 1 plane by default, 'all' in the striped overlays",
+      "unit": "policy / blocks / planes",
+      "grade": "implementation_policy",
+      "notes": "Host algorithms over the common OCP media scheduler. Structural policies use 48 B extent tree nodes, 96 B object/range records, bounded data buffers, explicit copy/encoding workspaces and two NAND checkpoint slots. Reverse lookup for segment cleaning scans the primary index and charges HBM traffic. hbf-mapping-superblock-planes stripes a structural organization's blocks, logs and segments over N adjacent allocation lanes (N must divide the plane count; the page FTL stripes pages itself and requires 1). The striped overlays write 'all', which the engine resolves to the composition's plane count (hbf-stacks x hbf-channels x hbf-dies-per-channel x hbf-planes-per-die) when the system configuration is resolved. These are implementation formats and serial host timing assumptions, not an OCP-prescribed FTL or measured CPU implementation. See docs/reference/hbf-mapping-organizations.md."
+    },
+    {
+      "config_keys": [
+        "hbf-mapping-cache-layout",
+        "hbf-mapping-cache-tag-bytes",
+        "hbf-mapping-scratch-pages"
+      ],
+      "profile_value": "page layout, 0 tag bytes and 0 scratch pages by default; the entry-cache and compressed-cache overlays and the mapping-organizations study provision 16 B tags and 2 scratch pages",
+      "unit": "layout / bytes per cached entry / pages",
+      "grade": "exploratory_assumption",
+      "notes": "Volatile layout of the cached (hbf-mapping-mode=cached) L2P cache in the HBM controller reservation: whole translation pages, DFTL-style individual entries (8 B PPN plus tag), or compressed affine-run extents with a dense-page fallback. Tag bytes and scratch pages are explicit hardware assumptions so layouts are compared with real tag and merge-workspace costs inside the same mapping budget; zero keeps the payload-only budget. Mechanisms follow DFTL (ASPLOS 2009) and lossless run compression, not a measured controller or an OCP requirement."
+    },
+    {
+      "config_keys": [
+        "hbf-write-accumulation-timeout-ns",
+        "hbf-outstanding-write-pages-per-channel"
+      ],
+      "profile_value": "1000000 ns accumulation timeout; 64 outstanding 4KiB pages/channel",
+      "unit": "mixed; values name their units",
+      "grade": "exploratory_assumption",
+      "notes": "OCP section5.4.1/Table13 specifies a host-configured timeout and product-specific credit limit; these defaults are assumptions. Credits include NAND programming until completion. Payload capacity is 256KiB/channel plus 8B coverage/page and command metadata. Timed-out incomplete pages are discarded; page-zero erase is deferred until full assembly. This is device SRAM, independent of the host HBM write buffer.",
+      "source": "ocp_hbf_v070"
+    },
+    {
+      "config_keys": [
+        "hbf-host-gc-decision-ns",
+        "hbf-zone-size-blocks",
+        "hbf-host-zone-wear-gap",
+        "hbf-host-zone-remap-ns"
+      ],
+      "profile_value": "50ns decision; one copy page per active GC stack; block-aligned zones",
+      "unit": "mixed; values name their units",
+      "grade": "implementation_policy",
+      "notes": "GC live-data relocation uses ordinary HBF read+write and retains its finite copy slot until destination ingress consumes the payload; no device copyback. The copy slot resides in the reserved HBM region; HBF read/HBM write/HBM read/HBF program traffic and dependencies are charged. Zone invalidation/reset is administrative, page0 reuse pays physical erase. Equal-size invalid zones swap within one channel with no outstanding I/O; PEC stays physical."
+    },
+    {
+      "config_keys": [
+        "hbf-thermal-enable",
+        "hbf-thermal-ambient-c",
+        "hbf-thermal-resistance-c-per-w",
+        "hbf-thermal-capacitance-j-per-c",
+        "hbf-thermal-throttle-c",
+        "hbf-thermal-release-c",
+        "hbf-thermal-static-power-w",
+        "hbf-thermal-read-energy-pj-per-bit",
+        "hbf-thermal-program-energy-pj-per-bit",
+        "hbf-thermal-erase-energy-uj-per-block",
+        "hbf-thermal-throttle-power-w",
+        "hbf-thermal-start-state",
+        "hbf-thermal-neighbor-heat-c"
+      ],
+      "profile_value": "lumped RC and explicit light-throttle pacing; disabled by library default",
+      "unit": "mixed; values name their units",
+      "grade": "exploratory_assumption",
+      "notes": "RC/energy/boundary/start conditions are experiment assumptions. OCP RTT/LTT/STT are configurable thresholds; 85/80 C are study choices, not universal product values. The parameter thermal study couples native service kernels to a workload-averaged RC projection, with R/C/energy sensitivity and explicit uncalibrated status. This light-throttle model does not implement p106-108 severe-throttle shutdown/CATTRIP protocol and must not be used to claim thermal compliance."
+    },
+    {
+      "config_keys": [
+        "hbm-read-latency-ns",
+        "hbm-write-latency-ns",
+        "hbm-read-to-write-ns",
+        "hbm-write-to-read-ns",
+        "hbm-bandwidth-efficiency",
+        "hbm-service-quantum-bytes",
+        "hbm-service-group-channels"
+      ],
+      "profile_value": "42/38 ns access latency; 8/8 ns application direction switching; 0.94 efficiency; 4096 B per-channel quantum; 4 pseudochannels per arbitration group",
+      "unit": "ns, ratio, bytes",
+      "grade": "exploratory_assumption",
+      "notes": "channel-aggregate-v2. Default latencies approximate a cold/conflicting access, and efficiency folds average refresh/command overhead into service. Group duration uses the busiest lane; grouping preserves isolated bandwidth but can serialize disjoint concurrent lanes. These are declared model assumptions, not measured HBM calibration. Shared HBF controller DMA pays effective group service without another application latency. Paired mixed-batch error measurements against the retired command-level model are summarized in docs/reference/model.md."
+    }
+  ]
+}

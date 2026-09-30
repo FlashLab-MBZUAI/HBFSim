@@ -1,21 +1,38 @@
 build/
-cmake-build-*/
-.idea/
-.vscode/
-.cache/
-compile_commands.json
-output/*
-!output/.gitkeep
-!output/plot_results.py
-*.o
-*.obj
-*.a
-*.so
-*.dylib
-*.dll
-.DS_Store
-**/.DS_Store
+build-*/
 __pycache__/
-*.pyc
-venv/
+*.py[cod]
+*.egg-info/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
 .venv/
+.DS_Store
+out/
+tmp/
+log/
+outputs/
+
+# Local research and presentation artifacts
+docs/docs/
+docs/proposal-images/
+docs/HBF-KIOXIA-proposal-images.zip
+
+# Local agent state and instructions
+.codex/
+AGENTS.md
+agents.md
+
+# Claude Code session artifacts (worktrees, local state)
+.claude/
+Testing/
+
+# Raw hardware-measurement traces pulled back from cluster runs: multi-GB
+# per-event JSONL receipts. The repo keeps immutable aggregates only; raw
+# traces are archived outside git (OneDrive).
+evidence/hardware/*/remote_receipts/
+
+# Generated presentation and review artifacts (never source)
+output/

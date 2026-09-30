@@ -1,0 +1,22 @@
+name: Share a study, result, or question
+description: Explored an HBF design question with HBFSim? Share what you ran and what you found, or ask how to model something.
+labels: ["study"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: The design question, e.g. "How much HBM does the L2P cache need for a 1M-token KV working set?"
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Setup
+      description: Systems, overlays, `--set` overrides, workload/trace, and the commands you ran (or would like to run).
+      render: shell
+  - type: textarea
+    id: findings
+    attributes:
+      label: Findings or where you are stuck
+      description: Tables (`python3 -m hbfsim show ... --format markdown`), figures, or the point where modeling got unclear.

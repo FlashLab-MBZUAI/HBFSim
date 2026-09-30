@@ -1,0 +1,244 @@
+{
+  "schema": {
+    "name": "hbfsim.evidence.external-tools",
+    "version": 2
+  },
+  "tools": [
+    {
+      "id": "ramulator2",
+      "domain": "dram",
+      "repository": "https://github.com/CMU-SAFARI/ramulator2.git",
+      "commit": "99a0e1e87a9321587492fef5b0bd6197928f8d68",
+      "source_tree": "7c06330cd5af8c934d9141294cc50499ab097ddc",
+      "pin_checked_at": "2026-07-30",
+      "adapter": "ramulator2-byte-accounting-v3",
+      "required_build_artifacts": [
+        "driver",
+        "library",
+        "build_log"
+      ],
+      "required_case_artifacts": [
+        "config",
+        "trace",
+        "raw_output",
+        "run_log",
+        "hbfsim_case",
+        "hbfsim_ledger"
+      ],
+      "dependencies": [
+        {
+          "id": "fmt",
+          "repository": "https://github.com/fmtlib/fmt.git",
+          "commit": "e69e5f977d458f2650bb346dadf2ad30c5320281"
+        },
+        {
+          "id": "yaml-cpp",
+          "repository": "https://github.com/jbeder/yaml-cpp.git",
+          "commit": "56e3bb550c91fd7005566f19c079cb7a503223cf"
+        }
+      ],
+      "fixture": {
+        "raw": "ramulator2.raw.json",
+        "expected": "ramulator2.expected.json"
+      },
+      "facets": [
+        {
+          "id": "dram.read-byte-accounting",
+          "claim": "Exact burst-rounded read/write byte accounting for three single-bank DDR4 traces; no HBM timing or row-state equivalence claim.",
+          "shared_boundary": [
+            "one channel, rank, bank group, and bank",
+            "64-byte read transactions",
+            "identical address and request-byte census"
+          ],
+          "excluded": [
+            "aggregate HBM access latency and effective bandwidth versus command-level DRAM service span",
+            "row-state classification, bank scheduling, and refresh",
+            "write timing and read/write turnaround",
+            "multi-bank, multi-rank, and multi-channel scheduling",
+            "HBM pseudo-channel topology and HBFSim address swizzle",
+            "queue saturation, backpressure, and starvation policy"
+          ],
+          "cases": [
+            "l3.ramulator2.read-miss",
+            "l3.ramulator2.read-hit",
+            "l3.ramulator2.read-conflict"
+          ]
+        }
+      ],
+      "cases": [
+        {
+          "case_id": "l3.ramulator2.read-miss",
+          "facet_id": "dram.read-byte-accounting",
+          "hbfsim_case": "verification/cases/l3.ramulator2.read-miss.json",
+          "external_inputs": {
+            "config": "evidence/external/assets/ramulator2-ddr4-3200w.yaml",
+            "trace": "evidence/external/assets/traces/ramulator2-read-miss.trace"
+          },
+          "shared_metrics": [
+            "read_bytes",
+            "write_bytes"
+          ],
+          "hbfsim_metrics": {
+            "read_bytes": "read_bytes",
+            "write_bytes": "write_bytes"
+          }
+        },
+        {
+          "case_id": "l3.ramulator2.read-hit",
+          "facet_id": "dram.read-byte-accounting",
+          "hbfsim_case": "verification/cases/l3.ramulator2.read-hit.json",
+          "external_inputs": {
+            "config": "evidence/external/assets/ramulator2-ddr4-3200w.yaml",
+            "trace": "evidence/external/assets/traces/ramulator2-read-hit.trace"
+          },
+          "shared_metrics": [
+            "read_bytes",
+            "write_bytes"
+          ],
+          "hbfsim_metrics": {
+            "read_bytes": "read_bytes",
+            "write_bytes": "write_bytes"
+          }
+        },
+        {
+          "case_id": "l3.ramulator2.read-conflict",
+          "facet_id": "dram.read-byte-accounting",
+          "hbfsim_case": "verification/cases/l3.ramulator2.read-conflict.json",
+          "external_inputs": {
+            "config": "evidence/external/assets/ramulator2-ddr4-3200w.yaml",
+            "trace": "evidence/external/assets/traces/ramulator2-read-conflict.trace"
+          },
+          "shared_metrics": [
+            "read_bytes",
+            "write_bytes"
+          ],
+          "hbfsim_metrics": {
+            "read_bytes": "read_bytes",
+            "write_bytes": "write_bytes"
+          }
+        }
+      ]
+    },
+    {
+      "id": "mqsim",
+      "domain": "flash",
+      "repository": "https://github.com/CMU-SAFARI/MQSim.git",
+      "commit": "51f0f2d3fed92d88ef4a0fa61a38024b07bf9d16",
+      "source_tree": "c5cbd1a1e75c61f2020273ff415ebf40f9446a1c",
+      "pin_checked_at": "2026-07-30",
+      "adapter": "mqsim-stats-wrapper-v2",
+      "required_build_artifacts": [
+        "executable",
+        "build_log"
+      ],
+      "required_case_artifacts": [
+        "config",
+        "workload",
+        "trace",
+        "tool_output",
+        "raw_output",
+        "run_log",
+        "hbfsim_case",
+        "hbfsim_ledger"
+      ],
+      "dependencies": [],
+      "fixture": {
+        "raw": "mqsim.raw.json",
+        "expected": "mqsim.expected.json"
+      },
+      "facets": [
+        {
+          "id": "flash.direct-data-page-io",
+          "claim": "Exact direct data-page read/program work for full-page SLC requests with mapping, cache, and GC work excluded.",
+          "shared_boundary": [
+            "one flash channel, chip, die, and plane",
+            "512-byte SLC pages and full-page requests",
+            "device data cache disabled",
+            "ideal in-memory mapping table",
+            "no preconditioning, garbage collection, wear leveling, or mapping-page I/O"
+          ],
+          "excluded": [
+            "host, PCIe, NVMe, and controller completion time",
+            "HBF HBIO, TSV, ECC, SRAM, and scheduler timing",
+            "mapping checkpoint page programs",
+            "garbage collection, relocation, and block erase behavior",
+            "partial-page update and write-buffer coalescing behavior"
+          ],
+          "cases": [
+            "l3.mqsim.data-write",
+            "l3.mqsim.write-read",
+            "l3.mqsim.overwrite"
+          ]
+        }
+      ],
+      "cases": [
+        {
+          "case_id": "l3.mqsim.data-write",
+          "facet_id": "flash.direct-data-page-io",
+          "hbfsim_case": "verification/cases/l3.mqsim.data-write.json",
+          "external_inputs": {
+            "config": "evidence/external/assets/mqsim-slc-direct.xml",
+            "workload": "evidence/external/assets/mqsim-direct-workload.xml",
+            "trace": "evidence/external/assets/traces/mqsim-data-write.trace"
+          },
+          "shared_metrics": [
+            "data_read_bytes",
+            "data_write_bytes",
+            "data_page_reads",
+            "data_page_programs"
+          ],
+          "hbfsim_metrics": {
+            "data_read_bytes": "physical_read_bytes",
+            "data_write_bytes": "data_program_payload_bytes",
+            "data_page_reads": "page_reads",
+            "data_page_programs": "data_programs"
+          }
+        },
+        {
+          "case_id": "l3.mqsim.write-read",
+          "facet_id": "flash.direct-data-page-io",
+          "hbfsim_case": "verification/cases/l3.mqsim.write-read.json",
+          "external_inputs": {
+            "config": "evidence/external/assets/mqsim-slc-direct.xml",
+            "workload": "evidence/external/assets/mqsim-direct-workload.xml",
+            "trace": "evidence/external/assets/traces/mqsim-write-read.trace"
+          },
+          "shared_metrics": [
+            "data_read_bytes",
+            "data_write_bytes",
+            "data_page_reads",
+            "data_page_programs"
+          ],
+          "hbfsim_metrics": {
+            "data_read_bytes": "physical_read_bytes",
+            "data_write_bytes": "data_program_payload_bytes",
+            "data_page_reads": "page_reads",
+            "data_page_programs": "data_programs"
+          }
+        },
+        {
+          "case_id": "l3.mqsim.overwrite",
+          "facet_id": "flash.direct-data-page-io",
+          "hbfsim_case": "verification/cases/l3.mqsim.overwrite.json",
+          "external_inputs": {
+            "config": "evidence/external/assets/mqsim-slc-direct.xml",
+            "workload": "evidence/external/assets/mqsim-direct-workload.xml",
+            "trace": "evidence/external/assets/traces/mqsim-overwrite.trace"
+          },
+          "shared_metrics": [
+            "data_read_bytes",
+            "data_write_bytes",
+            "data_page_reads",
+            "data_page_programs"
+          ],
+          "hbfsim_metrics": {
+            "data_read_bytes": "physical_read_bytes",
+            "data_write_bytes": "data_program_payload_bytes",
+            "data_page_reads": "page_reads",
+            "data_page_programs": "data_programs"
+          }
+        }
+      ]
+    }
+  ]
+}

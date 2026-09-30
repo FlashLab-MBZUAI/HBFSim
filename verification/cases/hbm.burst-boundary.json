@@ -1,0 +1,41 @@
+{
+  "schema": {
+    "name": "hbfsim.verification.case",
+    "version": 1
+  },
+  "case_id": "hbm.burst-boundary",
+  "model": "hbm",
+  "comparison": {
+    "time_abs_tolerance_ns": 1e-09,
+    "time_rel_tolerance": 1e-12
+  },
+  "config": {
+    "capacity_bytes": 128,
+    "stacks": 1,
+    "channels_per_stack": 1,
+    "pseudo_channels_per_channel": 2,
+    "bank_groups_per_pseudo_channel": 1,
+    "banks_per_group": 1,
+    "channel_row_size_bytes": 128
+  },
+  "inspect_addresses": [
+    0,
+    31,
+    32,
+    63,
+    64,
+    95,
+    96,
+    127
+  ],
+  "requests": [
+    {
+      "id": "cross-burst-row-map",
+      "arrival_ns": 0.0,
+      "op": "read",
+      "address_space": "logical",
+      "addr": 31,
+      "bytes": 66
+    }
+  ]
+}

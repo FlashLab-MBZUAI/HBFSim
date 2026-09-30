@@ -1,0 +1,192 @@
+{
+  "schema": "hbfsim.host_link_measurement.v1",
+  "measured_utc": "2026-09-23T12:59:17.903552+00:00",
+  "gpu": "NVIDIA H200 NVL",
+  "cuda_driver_version": 13020,
+  "python": "3.9.21",
+  "method": "CUDA driver API, page-locked host buffer, one non-blocking stream; host wall clock per copy",
+  "rows": [
+    {
+      "path": "gpu_pinned_host",
+      "direction": "offload_d2h",
+      "block_bytes": 4096,
+      "operations_per_trial": 8192,
+      "trials": 20,
+      "measured": {
+        "wall_time_ns_per_operation": 3497.3441162109375,
+        "gpu_event_ns_per_operation": 3495.8632895722985,
+        "wall_bandwidth_GBps": 1.171174429480406,
+        "latency_p50_ns": 20003.5,
+        "latency_p90_ns": 20429,
+        "gpu_event_latency_p50_ns": 9711.999911814928
+      }
+    },
+    {
+      "path": "gpu_pinned_host",
+      "direction": "offload_d2h",
+      "block_bytes": 65536,
+      "operations_per_trial": 8192,
+      "trials": 20,
+      "measured": {
+        "wall_time_ns_per_operation": 4599.9344482421875,
+        "gpu_event_ns_per_operation": 4598.455270752311,
+        "wall_bandwidth_GBps": 14.24715954920702,
+        "latency_p50_ns": 12292.5,
+        "latency_p90_ns": 21120,
+        "gpu_event_latency_p50_ns": 6560.000125318766
+      }
+    },
+    {
+      "path": "gpu_pinned_host",
+      "direction": "offload_d2h",
+      "block_bytes": 1048576,
+      "operations_per_trial": 1024,
+      "trials": 20,
+      "measured": {
+        "wall_time_ns_per_operation": 23520.2978515625,
+        "gpu_event_ns_per_operation": 23507.781326770782,
+        "wall_bandwidth_GBps": 44.58174835274635,
+        "latency_p50_ns": 39971.5,
+        "latency_p90_ns": 40447,
+        "gpu_event_latency_p50_ns": 29279.999434947968
+      }
+    },
+    {
+      "path": "gpu_pinned_host",
+      "direction": "offload_d2h",
+      "block_bytes": 4194304,
+      "operations_per_trial": 256,
+      "trials": 20,
+      "measured": {
+        "wall_time_ns_per_operation": 85808.6953125,
+        "gpu_event_ns_per_operation": 85760.74987649918,
+        "wall_bandwidth_GBps": 48.87970834103806,
+        "latency_p50_ns": 102551.0,
+        "latency_p90_ns": 103107,
+        "gpu_event_latency_p50_ns": 91711.99798583984
+      }
+    },
+    {
+      "path": "gpu_pinned_host",
+      "direction": "offload_d2h",
+      "block_bytes": 16777216,
+      "operations_per_trial": 64,
+      "trials": 20,
+      "measured": {
+        "wall_time_ns_per_operation": 335907.4140625,
+        "gpu_event_ns_per_operation": 335708.75227451324,
+        "wall_bandwidth_GBps": 49.945953252697116,
+        "latency_p50_ns": 352516.0,
+        "latency_p90_ns": 353022,
+        "gpu_event_latency_p50_ns": 341439.99218940735
+      }
+    },
+    {
+      "path": "gpu_pinned_host",
+      "direction": "offload_d2h",
+      "block_bytes": 67108864,
+      "operations_per_trial": 16,
+      "trials": 20,
+      "measured": {
+        "wall_time_ns_per_operation": 1336250.75,
+        "gpu_event_ns_per_operation": 1335440.993309021,
+        "wall_bandwidth_GBps": 50.22175965102358,
+        "latency_p50_ns": 1353203.0,
+        "latency_p90_ns": 1354385,
+        "gpu_event_latency_p50_ns": 1341472.0296859741
+      }
+    },
+    {
+      "path": "gpu_pinned_host",
+      "direction": "restore_h2d",
+      "block_bytes": 4096,
+      "operations_per_trial": 8192,
+      "trials": 20,
+      "measured": {
+        "wall_time_ns_per_operation": 3961.8878173828125,
+        "gpu_event_ns_per_operation": 3960.3475015610456,
+        "wall_bandwidth_GBps": 1.0338505754829224,
+        "latency_p50_ns": 20003.5,
+        "latency_p90_ns": 20188,
+        "gpu_event_latency_p50_ns": 9696.000255644321
+      }
+    },
+    {
+      "path": "gpu_pinned_host",
+      "direction": "restore_h2d",
+      "block_bytes": 65536,
+      "operations_per_trial": 8192,
+      "trials": 20,
+      "measured": {
+        "wall_time_ns_per_operation": 6097.614501953125,
+        "gpu_event_ns_per_operation": 6095.954915508628,
+        "wall_bandwidth_GBps": 10.747809652284214,
+        "latency_p50_ns": 22152.0,
+        "latency_p90_ns": 22261,
+        "gpu_event_latency_p50_ns": 11807.999573647976
+      }
+    },
+    {
+      "path": "gpu_pinned_host",
+      "direction": "restore_h2d",
+      "block_bytes": 1048576,
+      "operations_per_trial": 1024,
+      "trials": 20,
+      "measured": {
+        "wall_time_ns_per_operation": 57047.15966796875,
+        "gpu_event_ns_per_operation": 57029.78000044823,
+        "wall_bandwidth_GBps": 18.38086253729407,
+        "latency_p50_ns": 73915.0,
+        "latency_p90_ns": 74245,
+        "gpu_event_latency_p50_ns": 63135.99646091461
+      }
+    },
+    {
+      "path": "gpu_pinned_host",
+      "direction": "restore_h2d",
+      "block_bytes": 4194304,
+      "operations_per_trial": 256,
+      "trials": 20,
+      "measured": {
+        "wall_time_ns_per_operation": 218580.962890625,
+        "gpu_event_ns_per_operation": 218514.87457752228,
+        "wall_bandwidth_GBps": 19.18878910831212,
+        "latency_p50_ns": 236716.5,
+        "latency_p90_ns": 237177,
+        "gpu_event_latency_p50_ns": 225664.00468349457
+      }
+    },
+    {
+      "path": "gpu_pinned_host",
+      "direction": "restore_h2d",
+      "block_bytes": 16777216,
+      "operations_per_trial": 64,
+      "trials": 20,
+      "measured": {
+        "wall_time_ns_per_operation": 865055.59375,
+        "gpu_event_ns_per_operation": 864801.4962673187,
+        "wall_bandwidth_GBps": 19.394378952306496,
+        "latency_p50_ns": 888507.5,
+        "latency_p90_ns": 890055,
+        "gpu_event_latency_p50_ns": 877247.9891777039
+      }
+    },
+    {
+      "path": "gpu_pinned_host",
+      "direction": "restore_h2d",
+      "block_bytes": 67108864,
+      "operations_per_trial": 16,
+      "trials": 20,
+      "measured": {
+        "wall_time_ns_per_operation": 3454363.125,
+        "gpu_event_ns_per_operation": 3453356.981277466,
+        "wall_bandwidth_GBps": 19.42727546919376,
+        "latency_p50_ns": 3487450.5,
+        "latency_p90_ns": 3521414,
+        "gpu_event_latency_p50_ns": 3476688.027381897
+      }
+    }
+  ],
+  "platform": "NVIDIA H200 NVL, PCIe Gen5 x16 behind a PCIe switch, AMD EPYC 9654 host, driver 595.71.05",
+  "note": "first run; restore_h2d was contended (about 19 GB/s) and is outvoted by the median"
+}

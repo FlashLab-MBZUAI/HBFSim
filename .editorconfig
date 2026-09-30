@@ -1,0 +1,31 @@
+# https://editorconfig.org — keeps editors consistent with the existing code.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{cpp,hpp}]
+indent_style = space
+indent_size = 4
+
+[*.py]
+indent_style = space
+indent_size = 4
+
+[*.{json,yml,yaml,cff,cmake}]
+indent_style = space
+indent_size = 2
+
+[CMakeLists.txt]
+indent_style = space
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.{cfg,trace,jsonl,csv}]
+trim_trailing_whitespace = false
+insert_final_newline = unset

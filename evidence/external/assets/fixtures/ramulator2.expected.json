@@ -1,0 +1,13 @@
+{
+  "schema": {
+    "name": "hbfsim.evidence.external-normalized",
+    "version": 2
+  },
+  "tool_id": "ramulator2",
+  "domain": "dram",
+  "case_id": "external.fixture.ramulator2.row-sequence",
+  "metrics": {
+    "read_bytes": 128,
+    "write_bytes": 64
+  }
+}

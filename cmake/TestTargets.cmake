@@ -1,0 +1,133 @@
+add_executable(address_heatmap_test
+  tests/cpp/address_heatmap_test.cpp
+)
+target_link_libraries(address_heatmap_test PRIVATE hbfsim_reference_policies)
+
+add_executable(closed_loop_window_test
+  tests/cpp/closed_loop_window_test.cpp
+)
+target_link_libraries(closed_loop_window_test PRIVATE hbfsim_core)
+
+add_executable(external_backing_device_test
+  tests/cpp/external_backing_device_test.cpp
+)
+target_link_libraries(external_backing_device_test PRIVATE hbfsim_core)
+
+add_executable(hbf_compact_mutable_test
+  tests/cpp/hbf_compact_mutable_test.cpp
+)
+target_link_libraries(hbf_compact_mutable_test PRIVATE hbfsim_core)
+
+add_executable(hbf_persistent_image_test
+  tests/cpp/hbf_persistent_image_test.cpp
+)
+target_link_libraries(hbf_persistent_image_test PRIVATE hbfsim_core)
+
+add_executable(hbf_mapping_layout_test tests/cpp/hbf_mapping_layout_test.cpp)
+target_link_libraries(hbf_mapping_layout_test PRIVATE hbfsim_core)
+
+add_executable(hbf_mapping_multistack_test tests/cpp/hbf_mapping_multistack_test.cpp)
+target_link_libraries(hbf_mapping_multistack_test PRIVATE hbfsim_core)
+add_test(NAME hbf_mapping_multistack COMMAND hbf_mapping_multistack_test)
+
+add_executable(hbf_mapping_placement_test tests/cpp/hbf_mapping_placement_test.cpp)
+target_link_libraries(hbf_mapping_placement_test PRIVATE hbfsim_core)
+add_test(NAME hbf_mapping_placement COMMAND hbf_mapping_placement_test)
+
+add_executable(hbf_mapping_sram_test tests/cpp/hbf_mapping_sram_test.cpp)
+target_link_libraries(hbf_mapping_sram_test PRIVATE hbfsim_core)
+add_test(NAME hbf_mapping_sram COMMAND hbf_mapping_sram_test)
+
+add_executable(hbf_device_dram_test tests/cpp/hbf_device_dram_test.cpp)
+target_link_libraries(hbf_device_dram_test PRIVATE hbfsim_core)
+add_test(NAME hbf_device_dram COMMAND hbf_device_dram_test)
+
+add_executable(hbf_mapping_cache_test
+  tests/cpp/hbf_mapping_cache_test.cpp
+)
+target_link_libraries(hbf_mapping_cache_test PRIVATE hbfsim_core)
+
+add_executable(hbf_read_buffer_handoff_test
+  tests/cpp/hbf_read_buffer_handoff_test.cpp
+)
+target_link_libraries(hbf_read_buffer_handoff_test PRIVATE hbfsim_core)
+
+add_executable(hbf_read_buffer_pressure_test
+  tests/cpp/hbf_read_buffer_pressure_test.cpp
+)
+target_link_libraries(hbf_read_buffer_pressure_test PRIVATE hbfsim_core)
+
+add_executable(hbf_thermal_test
+  tests/cpp/hbf_thermal_test.cpp
+)
+target_link_libraries(hbf_thermal_test PRIVATE hbfsim_core)
+
+add_executable(hbf_gc_reserve_test
+  tests/cpp/hbf_gc_reserve_test.cpp
+)
+target_link_libraries(hbf_gc_reserve_test PRIVATE hbfsim_core)
+
+add_executable(hbf_checkpoint_pressure_test tests/cpp/hbf_checkpoint_pressure_test.cpp)
+target_link_libraries(hbf_checkpoint_pressure_test PRIVATE hbfsim_engine_app)
+
+add_executable(hbf_gc_index_test tests/cpp/hbf_gc_index_test.cpp)
+target_link_libraries(hbf_gc_index_test PRIVATE hbfsim_core)
+
+add_executable(hbf_gc_drain_parallel_test tests/cpp/hbf_gc_drain_parallel_test.cpp)
+target_link_libraries(hbf_gc_drain_parallel_test PRIVATE hbfsim_core)
+
+add_executable(hbf_static_wear_leveling_test
+  tests/cpp/hbf_static_wear_leveling_test.cpp
+)
+target_link_libraries(hbf_static_wear_leveling_test PRIVATE hbfsim_core)
+
+
+
+add_executable(hbm_clock_roundoff_test tests/cpp/hbm_clock_roundoff_test.cpp)
+target_link_libraries(hbm_clock_roundoff_test PRIVATE hbfsim_core)
+
+add_executable(hbm_controller_buffer_test tests/cpp/hbm_controller_buffer_test.cpp)
+target_link_libraries(hbm_controller_buffer_test PRIVATE hbfsim_core)
+
+add_executable(gap_calendar_test tests/cpp/gap_calendar_test.cpp)
+target_link_libraries(gap_calendar_test PRIVATE hbfsim_core)
+
+add_executable(host_memory_test tests/cpp/host_memory_test.cpp)
+target_link_libraries(host_memory_test PRIVATE hbfsim_core)
+
+add_executable(behavioral_tiering_policy_test
+  tests/cpp/behavioral_tiering_policy_test.cpp
+)
+target_link_libraries(
+  behavioral_tiering_policy_test PRIVATE hbfsim_reference_policies)
+
+add_executable(simulation_session_test
+  tests/cpp/simulation_session_test.cpp
+)
+target_link_libraries(
+  simulation_session_test PRIVATE hbfsim_core)
+
+add_executable(system_config_test
+  tests/cpp/system_config_test.cpp
+)
+target_link_libraries(
+  system_config_test PRIVATE hbfsim_engine_app)
+
+set(HBFSIM_TEST_OUT "${CMAKE_BINARY_DIR}/test-output")
+file(MAKE_DIRECTORY "${HBFSIM_TEST_OUT}")
+
+add_executable(hbf_host_zones_test tests/cpp/hbf_host_zones_test.cpp)
+target_link_libraries(hbf_host_zones_test PRIVATE hbfsim_core)
+
+add_executable(hbf_logical_invalidation_test tests/cpp/hbf_logical_invalidation_test.cpp)
+target_link_libraries(hbf_logical_invalidation_test PRIVATE hbfsim_core)
+
+add_executable(ocp_standard_test tests/cpp/ocp_standard_test.cpp)
+target_link_libraries(ocp_standard_test PRIVATE hbfsim_core)
+
+add_executable(hbf_mapping_organization_test tests/cpp/hbf_mapping_organization_test.cpp)
+target_link_libraries(hbf_mapping_organization_test PRIVATE hbfsim_core)
+add_test(NAME hbf_mapping_organization COMMAND hbf_mapping_organization_test)
+
+add_executable(hbm_channel_model_test tests/cpp/hbm_channel_model_test.cpp)
+target_link_libraries(hbm_channel_model_test PRIVATE hbfsim_core)

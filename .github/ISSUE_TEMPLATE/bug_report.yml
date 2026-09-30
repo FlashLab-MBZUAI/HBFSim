@@ -1,0 +1,40 @@
+name: Bug report
+description: The simulator crashed, rejected a valid input, or produced a result that violates its own model.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. A small reproducer is the fastest way to a fix.
+        For a security issue, use the private reporting flow in SECURITY.md instead.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you run, what did you expect, and what did you get instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: |
+        The exact command(s). With the front door, `command.txt` in the run directory holds the
+        underlying simulator command. Attach or link the trace/config if it is not in the repository.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Paste the output of `python3 -m hbfsim doctor` and `git rev-parse HEAD`.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Summary or log excerpt
+      description: The relevant part of `summary.json` or `stdout.txt` (warnings, sanity status, error message).
+      render: text

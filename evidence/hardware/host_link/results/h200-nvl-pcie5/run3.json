@@ -1,0 +1,301 @@
+{
+  "schema": "hbfsim.host_link_measurement.v1",
+  "measured_utc": "2026-09-23T13:05:30.206644+00:00",
+  "gpu": "NVIDIA H200 NVL",
+  "cuda_driver_version": 13020,
+  "python": "3.9.21",
+  "method": "CUDA driver API, page-locked host buffer, non-blocking streams; host wall clock per copy",
+  "rows": [
+    {
+      "path": "gpu_pinned_host",
+      "direction": "offload_d2h",
+      "block_bytes": 4096,
+      "operations_per_trial": 8192,
+      "trials": 20,
+      "measured": {
+        "wall_time_ns_per_operation": 2719.7218017578125,
+        "gpu_event_ns_per_operation": 2718.8651729375124,
+        "wall_bandwidth_GBps": 1.506036388483804,
+        "latency_p50_ns": 11587.0,
+        "latency_p90_ns": 12328,
+        "gpu_event_latency_p50_ns": 5919.999908655882
+      }
+    },
+    {
+      "path": "gpu_pinned_host",
+      "direction": "offload_d2h",
+      "block_bytes": 65536,
+      "operations_per_trial": 8192,
+      "trials": 20,
+      "measured": {
+        "wall_time_ns_per_operation": 3107.5678100585938,
+        "gpu_event_ns_per_operation": 3106.597578153014,
+        "wall_bandwidth_GBps": 21.08916168711514,
+        "latency_p50_ns": 12658.0,
+        "latency_p90_ns": 13940,
+        "gpu_event_latency_p50_ns": 6959.9999114871025
+      }
+    },
+    {
+      "path": "gpu_pinned_host",
+      "direction": "offload_d2h",
+      "block_bytes": 1048576,
+      "operations_per_trial": 1024,
+      "trials": 20,
+      "measured": {
+        "wall_time_ns_per_operation": 21597.375,
+        "gpu_event_ns_per_operation": 21588.92247825861,
+        "wall_bandwidth_GBps": 48.55108549071357,
+        "latency_p50_ns": 30934.0,
+        "latency_p90_ns": 31795,
+        "gpu_event_latency_p50_ns": 24992.000311613083
+      }
+    },
+    {
+      "path": "gpu_pinned_host",
+      "direction": "offload_d2h",
+      "block_bytes": 4194304,
+      "operations_per_trial": 256,
+      "trials": 20,
+      "measured": {
+        "wall_time_ns_per_operation": 77417.521484375,
+        "gpu_event_ns_per_operation": 77381.6853761673,
+        "wall_bandwidth_GBps": 54.17770963962631,
+        "latency_p50_ns": 87179.0,
+        "latency_p90_ns": 88496,
+        "gpu_event_latency_p50_ns": 80943.9979493618
+      }
+    },
+    {
+      "path": "gpu_pinned_host",
+      "direction": "offload_d2h",
+      "block_bytes": 16777216,
+      "operations_per_trial": 64,
+      "trials": 20,
+      "measured": {
+        "wall_time_ns_per_operation": 300242.0625,
+        "gpu_event_ns_per_operation": 300099.25365448,
+        "wall_bandwidth_GBps": 55.87896599264801,
+        "latency_p50_ns": 310111.0,
+        "latency_p90_ns": 311173,
+        "gpu_event_latency_p50_ns": 303696.00653648376
+      }
+    },
+    {
+      "path": "gpu_pinned_host",
+      "direction": "offload_d2h",
+      "block_bytes": 67108864,
+      "operations_per_trial": 16,
+      "trials": 20,
+      "measured": {
+        "wall_time_ns_per_operation": 1193080.15625,
+        "gpu_event_ns_per_operation": 1192489.9816513062,
+        "wall_bandwidth_GBps": 56.248411850995446,
+        "latency_p50_ns": 1203471.5,
+        "latency_p90_ns": 1204543,
+        "gpu_event_latency_p50_ns": 1196208.0001831055
+      }
+    },
+    {
+      "path": "gpu_pinned_host",
+      "direction": "restore_h2d",
+      "block_bytes": 4096,
+      "operations_per_trial": 8192,
+      "trials": 20,
+      "measured": {
+        "wall_time_ns_per_operation": 2802.4157104492188,
+        "gpu_event_ns_per_operation": 2801.5703428536654,
+        "wall_bandwidth_GBps": 1.461596145328283,
+        "latency_p50_ns": 11421.5,
+        "latency_p90_ns": 11517,
+        "gpu_event_latency_p50_ns": 5696.000065654516
+      }
+    },
+    {
+      "path": "gpu_pinned_host",
+      "direction": "restore_h2d",
+      "block_bytes": 65536,
+      "operations_per_trial": 8192,
+      "trials": 20,
+      "measured": {
+        "wall_time_ns_per_operation": 3434.76904296875,
+        "gpu_event_ns_per_operation": 3433.7304532527924,
+        "wall_bandwidth_GBps": 19.080176623274713,
+        "latency_p50_ns": 12563.0,
+        "latency_p90_ns": 12748,
+        "gpu_event_latency_p50_ns": 6800.000090152025
+      }
+    },
+    {
+      "path": "gpu_pinned_host",
+      "direction": "restore_h2d",
+      "block_bytes": 1048576,
+      "operations_per_trial": 1024,
+      "trials": 20,
+      "measured": {
+        "wall_time_ns_per_operation": 21098.5654296875,
+        "gpu_event_ns_per_operation": 21089.469082653522,
+        "wall_bandwidth_GBps": 49.698924009523566,
+        "latency_p50_ns": 30403.0,
+        "latency_p90_ns": 30614,
+        "gpu_event_latency_p50_ns": 24464.000016450882
+      }
+    },
+    {
+      "path": "gpu_pinned_host",
+      "direction": "restore_h2d",
+      "block_bytes": 4194304,
+      "operations_per_trial": 256,
+      "trials": 20,
+      "measured": {
+        "wall_time_ns_per_operation": 75985.345703125,
+        "gpu_event_ns_per_operation": 75949.62790608406,
+        "wall_bandwidth_GBps": 55.19885395253922,
+        "latency_p50_ns": 85762.0,
+        "latency_p90_ns": 86783,
+        "gpu_event_latency_p50_ns": 79520.00200748444
+      }
+    },
+    {
+      "path": "gpu_pinned_host",
+      "direction": "restore_h2d",
+      "block_bytes": 16777216,
+      "operations_per_trial": 64,
+      "trials": 20,
+      "measured": {
+        "wall_time_ns_per_operation": 295336.1015625,
+        "gpu_event_ns_per_operation": 295194.00000572205,
+        "wall_bandwidth_GBps": 56.807196652352204,
+        "latency_p50_ns": 304883.0,
+        "latency_p90_ns": 305705,
+        "gpu_event_latency_p50_ns": 298416.00358486176
+      }
+    },
+    {
+      "path": "gpu_pinned_host",
+      "direction": "restore_h2d",
+      "block_bytes": 67108864,
+      "operations_per_trial": 16,
+      "trials": 20,
+      "measured": {
+        "wall_time_ns_per_operation": 1171416.5625,
+        "gpu_event_ns_per_operation": 1170807.0039749146,
+        "wall_bandwidth_GBps": 57.28864193005637,
+        "latency_p50_ns": 1184159.0,
+        "latency_p90_ns": 1185727,
+        "gpu_event_latency_p50_ns": 1176815.9866333008
+      }
+    }
+  ],
+  "concurrency": [
+    {
+      "direction": "offload_d2h",
+      "block_bytes": 1048576,
+      "streams": 1,
+      "aggregate_GBps": 48.53509565023692
+    },
+    {
+      "direction": "offload_d2h",
+      "block_bytes": 1048576,
+      "streams": 2,
+      "aggregate_GBps": 48.43967017013901
+    },
+    {
+      "direction": "offload_d2h",
+      "block_bytes": 1048576,
+      "streams": 4,
+      "aggregate_GBps": 48.166210330870626
+    },
+    {
+      "direction": "offload_d2h",
+      "block_bytes": 4194304,
+      "streams": 1,
+      "aggregate_GBps": 54.16360089523593
+    },
+    {
+      "direction": "offload_d2h",
+      "block_bytes": 4194304,
+      "streams": 2,
+      "aggregate_GBps": 54.16633871504914
+    },
+    {
+      "direction": "offload_d2h",
+      "block_bytes": 4194304,
+      "streams": 4,
+      "aggregate_GBps": 54.08093288972276
+    },
+    {
+      "direction": "offload_d2h",
+      "block_bytes": 16777216,
+      "streams": 1,
+      "aggregate_GBps": 55.879405106576044
+    },
+    {
+      "direction": "offload_d2h",
+      "block_bytes": 16777216,
+      "streams": 2,
+      "aggregate_GBps": 55.84933739165406
+    },
+    {
+      "direction": "offload_d2h",
+      "block_bytes": 16777216,
+      "streams": 4,
+      "aggregate_GBps": 55.835376867353325
+    },
+    {
+      "direction": "restore_h2d",
+      "block_bytes": 1048576,
+      "streams": 1,
+      "aggregate_GBps": 49.750694372079835
+    },
+    {
+      "direction": "restore_h2d",
+      "block_bytes": 1048576,
+      "streams": 2,
+      "aggregate_GBps": 49.75935170126607
+    },
+    {
+      "direction": "restore_h2d",
+      "block_bytes": 1048576,
+      "streams": 4,
+      "aggregate_GBps": 49.78171791838833
+    },
+    {
+      "direction": "restore_h2d",
+      "block_bytes": 4194304,
+      "streams": 1,
+      "aggregate_GBps": 55.21420286204839
+    },
+    {
+      "direction": "restore_h2d",
+      "block_bytes": 4194304,
+      "streams": 2,
+      "aggregate_GBps": 55.1715847552724
+    },
+    {
+      "direction": "restore_h2d",
+      "block_bytes": 4194304,
+      "streams": 4,
+      "aggregate_GBps": 55.148544164934
+    },
+    {
+      "direction": "restore_h2d",
+      "block_bytes": 16777216,
+      "streams": 1,
+      "aggregate_GBps": 56.7883483331521
+    },
+    {
+      "direction": "restore_h2d",
+      "block_bytes": 16777216,
+      "streams": 2,
+      "aggregate_GBps": 56.862916352914255
+    },
+    {
+      "direction": "restore_h2d",
+      "block_bytes": 16777216,
+      "streams": 4,
+      "aggregate_GBps": 56.863672206858986
+    }
+  ],
+  "platform": "NVIDIA H200 NVL, PCIe Gen5 x16 behind a PCIe switch, AMD EPYC 9654 host, driver 595.71.05"
+}

@@ -1,0 +1,56 @@
+{
+  "schema": {
+    "name": "hbfsim.verification.case",
+    "version": 1
+  },
+  "case_id": "hybrid.parent-split",
+  "model": "hybrid",
+  "comparison": {
+    "time_abs_tolerance_ns": 1e-09,
+    "time_rel_tolerance": 1e-12
+  },
+  "config": {
+    "hbm": {
+      "capacity_bytes": 65536,
+      "stacks": 1,
+      "channels_per_stack": 1,
+      "pseudo_channels_per_channel": 1,
+      "bank_groups_per_pseudo_channel": 1,
+      "banks_per_group": 1
+    },
+    "hbf": {
+      "stacks": 1,
+      "channels_per_stack": 1,
+      "dies_per_channel": 1,
+      "planes_per_die": 1,
+      "blocks_per_plane": 16,
+      "pages_per_block": 4,
+      "page_size_bytes": 4096,
+      "oob_bytes_per_page": 128,
+      "media_lanes_per_plane": 1,
+      "page_buffer_banks_per_plane": 1,
+      "mapping_entries_per_page": 512,
+      "auto_gc_enabled": false,
+      "gc_reserved_free_blocks_per_plane": 0
+    },
+    "policy": {
+      "kind": "flat",
+      "read_boundary": 32768
+    },
+    "knobs": {
+      "max_outstanding_requests": 0
+    }
+  },
+  "initial_state": {},
+  "requests": [
+    {
+      "id": "cross-tier-parent",
+      "arrival_ns": 0.0,
+      "op": "read",
+      "address_space": "logical",
+      "addr": 32256,
+      "bytes": 1024
+    }
+  ],
+  "inspect_addresses": []
+}

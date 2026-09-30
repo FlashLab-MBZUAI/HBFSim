@@ -1,0 +1,47 @@
+{
+  "schema": {
+    "name": "hbfsim.verification.case",
+    "version": 1
+  },
+  "case_id": "l3.ramulator2.read-conflict",
+  "model": "hbm",
+  "comparison": {
+    "time_abs_tolerance_ns": 1e-09,
+    "time_rel_tolerance": 1e-12
+  },
+  "config": {
+    "capacity_bytes": 1048576,
+    "stacks": 1,
+    "channels_per_stack": 1,
+    "pseudo_channels_per_channel": 1,
+    "bank_groups_per_pseudo_channel": 1,
+    "banks_per_group": 1,
+    "channel_row_size_bytes": 8192,
+    "channel_width_bits": 64,
+    "burst_length": 8,
+    "pin_rate_Gbps": 3.2,
+    "data_rate_per_command_clock": 2
+  },
+  "inspect_addresses": [
+    0,
+    8192
+  ],
+  "requests": [
+    {
+      "id": "read-first-row",
+      "arrival_ns": 0.0,
+      "op": "read",
+      "address_space": "logical",
+      "addr": 0,
+      "bytes": 64
+    },
+    {
+      "id": "read-conflicting-row",
+      "arrival_ns": 0.0,
+      "op": "read",
+      "address_space": "logical",
+      "addr": 8192,
+      "bytes": 64
+    }
+  ]
+}

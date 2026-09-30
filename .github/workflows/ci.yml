@@ -1,0 +1,181 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    # Weekly, Monday 03:17 UTC: runs the whole workflow plus mutation-testing.
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: read
+
+env:
+  # ServeLoop compiler revision that HBFSim commit 7d1249d was written
+  # against. ServeLoop's public main (b808bd4) still emits `span_start`,
+  # which the current hbfsim_client rejects, so the frontend-integration
+  # job stays red until this revision is on ServeLoop's public main.
+  SERVELOOP_REVISION: 585c563
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The out-of-the-box path a new user takes: no CMake flags, no frontend
+  # checkout, the oldest supported Python, and every runnable example.
+  quickstart:
+    name: Quick start / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.10"
+      - name: Build
+        run: python3 -m hbfsim build
+      - name: Doctor
+        run: python3 -m hbfsim doctor
+      - name: Quick start
+        run: python3 -m hbfsim quickstart
+      - name: Front door
+        run: python3 -B tests/python/test_hbfsim_frontdoor.py --build-dir build
+      - name: Examples
+        run: |
+          set -e
+          for example in examples/[0-9][0-9]_*.py; do
+            echo "::group::$example"
+            python3 -B "$example"
+            echo "::endgroup::"
+          done
+
+  # Every target compiles warning-free on GCC and Clang, and every test that
+  # does not need the ServeLoop checkout passes in Debug and Release.
+  # verify_physical also runs an 'hbf-standard' trace that is not a CTest case.
+  build-and-test:
+    name: Build and test / ${{ matrix.os }} / ${{ matrix.build_type }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14]
+        build_type: [Debug, Release]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Configure
+        run: >-
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Werror"
+      - name: Build
+        run: cmake --build build --parallel 2
+      - name: Tests without the frontend
+        run: ctest --test-dir build --output-on-failure -LE serveloop
+      - name: Physical guards
+        run: cmake --build build --target verify_physical
+
+  # Tests labelled 'serveloop' exercise the ServeLoop compiler through the
+  # hbfsim_client protocol. HBFSim comes first on PYTHONPATH because its
+  # hbfsim_client is the protocol source of truth.
+  frontend-integration:
+    name: ServeLoop frontend integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Prepare ServeLoop checkout
+        run: |
+          serveloop_root="$(dirname "$GITHUB_WORKSPACE")/ServeLoop"
+          git clone https://github.com/FlashLab-MBZUAI/ServeLoop.git "$serveloop_root"
+          git -C "$serveloop_root" checkout --detach "$SERVELOOP_REVISION"
+          echo "SERVELOOP_ROOT=$serveloop_root" >> "$GITHUB_ENV"
+          echo "PYTHONPATH=$GITHUB_WORKSPACE:$serveloop_root" >> "$GITHUB_ENV"
+      - name: Configure
+        run: >-
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DHBFSIM_SERVELOOP_SOURCE_DIR="$SERVELOOP_ROOT"
+      - name: Build
+        run: cmake --build build --parallel 2
+      - name: Frontend tests
+        run: ctest --test-dir build --output-on-failure -L serveloop
+
+  # Gates that are not CTest cases and take longer than a unit test:
+  # component contracts (about 30 s) and write-amplification regimes (about
+  # 50 s). verify_foundation is not run here because its five parts are
+  # already CTest cases covered by build-and-test.
+  deep-verification:
+    name: Component and write-amplification gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Configure and build
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel 2
+      - name: Component contracts
+        run: cmake --build build --target verify_components
+      - name: Write amplification
+        run: cmake --build build --target verify_write_amplification
+
+  # The mutation gate does a clean rebuild of the foundational probes for each
+  # production mutation (70-95 s per mutant on a 4-core machine with
+  # --parallel 2; 14 mutants measured at 1538 s, all 25 extrapolate to about
+  # 38 min), so it runs weekly and on demand rather than on every push.
+  mutation-testing:
+    name: Foundational mutation gate
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Foundational production mutations
+        run: cmake --build build --target verify_mutations
+
+  sanitizers:
+    name: ASan + UBSan
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Configure
+        run: >-
+          cmake -S . -B build-sanitize
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+          -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address,undefined"
+      - name: Build
+        run: cmake --build build-sanitize --parallel 2
+      - name: Tests without the frontend
+        run: ctest --test-dir build-sanitize --output-on-failure -LE serveloop
+      - name: Physical guards
+        run: cmake --build build-sanitize --target verify_physical
