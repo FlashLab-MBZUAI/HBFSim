@@ -1,27 +1,34 @@
 #include "physical/simulation_session.hpp"
 #include "physical/resource_calendar.hpp"
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <new>
 
 // Count requested heap bytes, not RSS: allocator caches and OS paging should
 // not hide retained simulator state. This executable is single-threaded.
 namespace census {
-struct alignas(std::max_align_t) Header { std::size_t bytes; };
+// Default operator new alignment can exceed max_align_t (Apple arm64: 16 vs 8).
+// Advancing past the header must preserve the allocator's promised alignment.
+struct alignas(__STDCPP_DEFAULT_NEW_ALIGNMENT__) Header { std::size_t bytes; };
 std::size_t live = 0, peak = 0;
 }
 void* operator new(std::size_t bytes) {
-    auto* p = static_cast<census::Header*>(std::malloc(sizeof(census::Header) + bytes));
+    auto* p = static_cast<unsigned char*>(std::malloc(sizeof(census::Header) + bytes));
     if (!p) throw std::bad_alloc();
-    p->bytes = bytes;
+    std::memcpy(p, &bytes, sizeof(bytes));
     census::live += bytes;
     census::peak = std::max(census::peak, census::live);
-    return p + 1;
+    return p + sizeof(census::Header);
 }
 void operator delete(void* p) noexcept {
     if (!p) return;
-    auto* h = static_cast<census::Header*>(p) - 1;
-    census::live -= h->bytes;
+    auto* h = static_cast<unsigned char*>(p) - sizeof(census::Header);
+    std::size_t bytes;
+    std::memcpy(&bytes, h, sizeof(bytes));
+    census::live -= bytes;
     std::free(h);
 }
 void* operator new[](std::size_t n) { return ::operator new(n); }
@@ -32,6 +39,17 @@ void operator delete[](void* p, std::size_t) noexcept { ::operator delete(p); }
 using namespace hbfsim::physical;
 void require(bool valid, const char* message) {
     if (!valid) throw std::runtime_error(message);
+}
+
+void allocation_alignment_is_valid() {
+    const auto base = census::live;
+    void* allocation = ::operator new(1);
+    const bool aligned = reinterpret_cast<std::uintptr_t>(allocation)
+        % __STDCPP_DEFAULT_NEW_ALIGNMENT__ == 0;
+    const bool counted = census::live == base + 1;
+    ::operator delete(allocation);
+    require(aligned, "heap census violates default operator new alignment");
+    require(counted && census::live == base, "heap census lost requested-byte accounting");
 }
 
 template<class Calendar> void calendar_reclaims() {
@@ -98,6 +116,7 @@ void invalidation_is_bounded(std::uint32_t stacks) {
 
 int main() {
     try {
+        allocation_alignment_is_valid();
         calendar_reclaims<ResourceTimeline>();
         cache_history_is_bounded();
         invalidation_is_bounded(1);
