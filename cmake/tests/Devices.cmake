@@ -77,7 +77,8 @@ add_test(
   NAME hbf_gc_cached_mapping_progress
   COMMAND hbf_gc_reserve_test
 )
-set_tests_properties(hbf_gc_cached_mapping_progress PROPERTIES TIMEOUT 60)
+# The full overwrite stress cases also run in unoptimized Debug builds.
+set_tests_properties(hbf_gc_cached_mapping_progress PROPERTIES TIMEOUT 300)
 
 add_test(NAME hbf_checkpoint_pressure
   COMMAND hbf_checkpoint_pressure_test "${CMAKE_SOURCE_DIR}/configs/systems/4hbm-4hbf.cfg")

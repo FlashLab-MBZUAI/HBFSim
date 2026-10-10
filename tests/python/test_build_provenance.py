@@ -9,6 +9,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 
 
@@ -69,6 +70,10 @@ class BuildProvenanceTests(unittest.TestCase):
             self.assertEqual(executable.stat().st_mtime_ns, original_mtime)
             saved = root / "previous-probe"
             shutil.copy2(executable, saved)
+            # macOS system Make compares timestamps at one-second resolution.
+            # Separate the edit from the preceding build so this contract test
+            # checks provenance updates rather than a same-second Make race.
+            time.sleep(1.1)
             program.write_text(program.read_text(encoding="utf-8") + "\n", encoding="utf-8")
             self.assertEqual(command(str(executable)), original)
             command(self.cmake, "--build", str(build))
